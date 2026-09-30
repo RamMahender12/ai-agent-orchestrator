@@ -19,13 +19,8 @@ Netlify is a high-performance global hosting platform for web applications. Beca
 4. **Done!** Netlify will immediately upload the files and generate a live, public HTTPS URL (e.g. `https://agent-nexus-abc123.netlify.app`).
 
 > **What happens when hosted this way?**
-> The dashboard will detect that it is running in Netlify Cloud mode. All features will work right in the browser:
-> - Direct chat with **Agent A (OpenAI GPT-4o)**
-> - Direct chat with **Agent B (Claude 3.5 Sonnet)**
-> - Direct chat with **Agent C (Supervisor)**
-> - Multi-Agent workflow execution with **self-correction & revisions**
-> - Live token & USD cost telemetry
-> - SQLite / LocalStorage Run Inspector modal
+> Netlify only hosts the HTML/CSS/JS. **API keys stay on a Python server** — they must never be pasted into the static site.
+> Without a backend, the UI runs **demo mode** (canned replies). For **real** Laguna / Nemotron via OpenRouter, use **Method 3** below or run locally: `python server.py` → http://127.0.0.1:8000
 
 ---
 
@@ -75,8 +70,10 @@ Because Netlify is a static CDN / serverless host, continuous Python servers (`s
    - **Build Command:** `pip install -r requirements.txt`
    - **Start Command:** `uvicorn server:app --host 0.0.0.0 --port $PORT`
 4. Under **Environment Variables**, add:
-   - `OPENAI_API_KEY`: `your_openai_key`
-   - `ANTHROPIC_API_KEY`: `your_anthropic_key`
+   - `OPENROUTER_API_KEY`: your OpenRouter key
+   - `AGENT_A_MODEL`: `poolside/laguna-s-2.1:free`
+   - `AGENT_B_MODEL`: `nvidia/nemotron-3-ultra-550b-a55b:free`
+   - `SIMULATION_MODE`: `false`
 5. Click **"Create Web Service"**. Render will give you a backend URL (e.g. `https://my-agent-backend.onrender.com`).
 
 ### Step 2: Point Netlify to your Backend

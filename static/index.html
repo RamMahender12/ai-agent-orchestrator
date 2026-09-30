@@ -3,559 +3,656 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Nexus | 3-Screen Multi-Agent Supervisor</title>
-  <meta name="description" content="Dedicated 3-screen interface for OpenAI (Agent A), Claude (Agent B), and Supervisor (Agent C) with live token cost telemetry, self-correction, and SQLite persistence.">
+  <title>Nexus Orchestrator | Autonomous Multi-Agent Supervision Console</title>
+  <meta name="description" content="Enterprise-grade autonomous multi-agent orchestration console featuring OpenAI (Creator), Claude (Quality Auditor), and Supervisor (Meta-Orchestrator) with live token cost telemetry, self-correction, and SQLite audit persistence.">
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260930_ui">
-
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20261001_v5">
 </head>
 <body>
-  <div class="app-background">
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
-    <div class="glow-orb orb-3"></div>
+  <!-- Ambient Atmosphere -->
+  <div class="bg-mesh">
+    <div class="mesh-orb orb-c"></div>
+    <div class="mesh-orb orb-b"></div>
+    <div class="mesh-orb orb-a"></div>
   </div>
+  <div class="bg-grid"></div>
 
   <div class="app-shell">
-    <!-- Header -->
+    <!-- Top Executive Header & Telemetry -->
     <header class="header glass-panel">
       <div class="header-brand">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="brand-symbol">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
             <polyline points="2 17 12 22 22 17"></polyline>
             <polyline points="2 12 12 17 22 12"></polyline>
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">AGENT NEXUS</h1>
-          <p class="brand-subtitle">Laguna writes, Nemotron reviews, Supervisor tracks cost</p>
+          <div class="brand-title">
+            NEXUS ORCHESTRATOR
+            <span class="brand-version-badge">Enterprise v2.4</span>
+          </div>
+          <p class="brand-subtitle">Autonomous Multi-Agent Supervision, Quality Gates & Telemetry</p>
         </div>
       </div>
 
-      <div class="header-metrics">
-        <div class="metric-chip">
-          <span class="chip-label">SYSTEM</span>
-          <span class="status-indicator online"></span>
-          <span class="chip-value" id="system-status">ONLINE</span>
+      <!-- Quick Agent Status Badges in Header -->
+      <div class="agent-header-badges">
+        <div class="agent-mini-pill pill-c" title="Agent C: Directive Engine & Supervisor">
+          <span class="dot"></span>
+          <span>Agent C · Supervisor</span>
         </div>
-        <div class="metric-chip">
-          <span class="chip-label">TOTAL TOKENS</span>
-          <span class="chip-value text-accent" id="global-tokens">0</span>
+        <div class="agent-mini-pill pill-a" title="Agent A: Implementation & Technical Creator">
+          <span class="dot"></span>
+          <span>Agent A · Creator (OpenAI)</span>
         </div>
-        <div class="metric-chip">
-          <span class="chip-label">SESSION COST</span>
-          <span class="chip-value text-success" id="global-cost">$0.000000</span>
+        <div class="agent-mini-pill pill-b" title="Agent B: Quality Auditor & Logic Evaluator">
+          <span class="dot"></span>
+          <span>Agent B · Auditor (Claude)</span>
         </div>
-        <div class="mode-toggle-group" style="margin-left: 8px;">
-          <label class="mode-toggle">
+      </div>
+
+      <!-- Live Executive Metrics -->
+      <div class="header-telemetry">
+        <div class="telemetry-chip">
+          <span class="tc-label">SYSTEM HEALTH</span>
+          <span class="tc-value value-status">
+            <span class="status-dot" id="system-status-dot"></span>
+            <span id="system-status-text">CONNECTING</span>
+          </span>
+        </div>
+        <div class="telemetry-chip">
+          <span class="tc-label">TOTAL TOKENS</span>
+          <span class="tc-value value-tokens" id="global-tokens">0</span>
+        </div>
+        <div class="telemetry-chip">
+          <span class="tc-label">SESSION COST (USD)</span>
+          <span class="tc-value value-cost" id="global-cost">$0.0000</span>
+        </div>
+        <div class="mode-switch-container">
+          <label class="mode-toggle-label" title="Toggle between Live API and Autonomous Simulation">
             <input type="checkbox" id="mode-checkbox">
-            <span class="toggle-slider"></span>
-            <span class="toggle-label" id="mode-label">Live API Mode</span>
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+            <span id="mode-text">Live API Mode</span>
           </label>
         </div>
       </div>
     </header>
 
-    <!-- Navigation Tabs: 3 Separate Agent Screens + Split View + Database + Guide -->
-    <nav class="nav-tabs glass-panel">
-      <button class="nav-tab active" data-tab="tab-screen-c" id="nav-btn-c">
-        <span class="tab-icon">🤖</span> Supervisor
+    <!-- Main Navigation Bar -->
+    <nav class="main-nav glass-panel">
+      <button class="nav-tab highlight-tab active" data-tab="tab-arena" id="nav-btn-arena">
+        <span class="tab-icon">⚡</span> Multi-Agent Studio
       </button>
-      <button class="nav-tab" data-tab="tab-screen-a" id="nav-btn-a">
-        <span class="tab-icon">🟢</span> Laguna
+      <button class="nav-tab" data-tab="tab-sandbox" id="nav-btn-sandbox">
+        <span class="tab-icon">💬</span> Direct Agent Sandbox
       </button>
-      <button class="nav-tab" data-tab="tab-screen-b" id="nav-btn-b">
-        <span class="tab-icon">🟣</span> Nemotron
-      </button>
-      <button class="nav-tab highlight-tab" data-tab="tab-screen-split" id="nav-btn-split">
-        <span class="tab-icon">⚡</span> All three
-      </button>
-      <button class="nav-tab" data-tab="tab-database" id="nav-btn-db">
-        <span class="tab-icon">🗄️</span> Logs
+      <button class="nav-tab" data-tab="tab-database" id="nav-btn-database">
+        <span class="tab-icon">🗄️</span> SQLite Audit Ledger
       </button>
       <button class="nav-tab" data-tab="tab-guide" id="nav-btn-guide">
-        <span class="tab-icon">📐</span> Architecture Guide
+        <span class="tab-icon">📐</span> Architecture & Protocol
       </button>
     </nav>
 
     <!-- ======================================================== -->
-    <!-- TAB 1: SCREEN C - AGENT C (SUPERVISOR ENGINE / OUR AGENT) -->
+    <!-- VIEW 1: MULTI-AGENT ORCHESTRATION STUDIO                -->
     <!-- ======================================================== -->
-    <section class="tab-content active" id="tab-screen-c">
-      <div class="agent-screen glass-panel screen-c-theme">
-        <!-- Screen Header -->
-        <div class="screen-header">
-          <div class="screen-title-group">
-            <span class="agent-badge badge-c">AGENT C (OUR AGENT)</span>
-            <h2 class="screen-agent-title">Supervisor & Meta-Orchestrator</h2>
-            <span class="agent-state-pill" id="agent-c-state">STANDBY</span>
+    <main class="tab-content active" id="tab-arena">
+      <!-- Mission Control Console -->
+      <section class="mission-control glass-panel">
+        <div class="mission-control-header">
+          <div class="mc-title-group">
+            <span class="mc-badge">Mission Control</span>
+            <h2 class="mc-title">Autonomous Workflow Dispatcher</h2>
           </div>
-          <div class="screen-telemetry">
-            <div class="screen-metric-box">
-              <span class="sm-label">DIRECTIVES ISSUED</span>
-              <span class="sm-val" id="agent-c-directives">0</span>
-            </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">SUPERVISOR TOKENS</span>
-              <span class="sm-val" id="agent-c-tokens">0</span>
-            </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">SUPERVISOR COST</span>
-              <span class="sm-val text-success" id="agent-c-cost">$0.0000</span>
-            </div>
+          <div class="preset-chips-row">
+            <span class="preset-label">Quick Tasks:</span>
+            <button class="preset-chip" data-task="Design a resilient, high-throughput financial transaction processing engine with audit logging and rate limiting.">
+              💳 Financial Transaction Engine
+            </button>
+            <button class="preset-chip" data-task="Implement an asynchronous in-memory caching utility in Python with TTL expiration and LRU eviction policy.">
+              ⚡ Async LRU Cache
+            </button>
+            <button class="preset-chip" data-task="Draft a security-compliant multi-cloud Kubernetes deployment architecture proposal for an enterprise healthcare app.">
+              🏥 Healthcare K8s Proposal
+            </button>
+            <button class="preset-chip" data-task="Audit a distributed event bus for idempotency, retry storms, and dead letter queue routing.">
+              🛡️ Distributed Event Bus
+            </button>
           </div>
         </div>
 
-        <!-- Sleek Supervisor Configuration & Quality Gate Bar -->
-        <div class="supervisor-settings-bar">
-          <div class="setting-item">
-            <label for="threshold-slider">
+        <!-- Task Input Box & Launch Button -->
+        <div class="task-input-wrapper">
+          <textarea class="task-textarea" id="task-input" rows="2" placeholder="Describe the mission objective for the agent triad (e.g. 'Implement a high-throughput financial transaction processing engine with atomic locking and rate limiting')..."></textarea>
+          <button class="btn-launch" id="btn-launch-workflow">
+            <span class="btn-title">
+              <span id="btn-launch-icon">🚀</span>
+              <span id="btn-launch-label">Launch Workflow</span>
+            </span>
+            <span class="btn-sub">Orchestrates Agent C, A & B</span>
+          </button>
+        </div>
+
+        <!-- Controls Row: Quality Gate, Model Pickers & Active Run -->
+        <div class="controls-bar">
+          <div class="control-item">
+            <label for="gate-slider">
               <span>Quality Acceptance Gate:</span>
-              <span class="threshold-badge"><strong id="threshold-val">80</strong> / 100</span>
+              <span class="gate-badge" id="gate-display">80 / 100</span>
             </label>
-            <input type="range" id="threshold-slider" min="60" max="95" value="80" step="5">
+            <input type="range" class="range-slider" id="gate-slider" min="60" max="95" value="80" step="5">
           </div>
-          <div class="setting-item">
+          <div class="control-item">
             <label for="sel-model-a">Agent A (Creator Model):</label>
             <select id="sel-model-a" class="custom-select">
-              <option value="poolside/laguna-s-2.1:free" selected>Laguna S 2.1 (free)</option>
+              <option value="poolside/laguna-s-2.1:free" selected>Laguna S 2.1 (OpenAI Free Tier)</option>
+              <option value="openai/gpt-4o">OpenAI GPT-4o (Production)</option>
+              <option value="openai/gpt-4o-mini">OpenAI GPT-4o Mini (High Speed)</option>
             </select>
           </div>
-          <div class="setting-item">
+          <div class="control-item">
             <label for="sel-model-b">Agent B (Auditor Model):</label>
             <select id="sel-model-b" class="custom-select">
-              <option value="nvidia/nemotron-3-ultra-550b-a55b:free" selected>Nemotron 3 Ultra (free)</option>
+              <option value="nvidia/nemotron-3-ultra-550b-a55b:free" selected>Nemotron 3 Ultra (Claude Free Tier)</option>
+              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Production Audit)</option>
+              <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast Evaluator)</option>
             </select>
           </div>
-          <div class="setting-item setting-run-info">
-            <span class="setting-sublabel">ACTIVE WORKFLOW RUN</span>
-            <span class="chip-label active-run-tag" id="current-run-pill">No Active Run</span>
+          <div class="control-item">
+            <label>Active Orchestration Run:</label>
+            <div class="run-id-pill">
+              <span style="color: var(--text-dim);">RUN ID:</span>
+              <span id="active-run-id">IDLE (Standby)</span>
+            </div>
           </div>
         </div>
+      </section>
 
-        <!-- Supervisor Stream / Directives Feed -->
-        <div class="screen-feed-label">
-          <span>Supervisor Coordination Feed & Directives Stream</span>
-          <button class="btn-secondary" id="btn-clear-feed-c" style="padding: 2px 10px; font-size: 0.75rem;">Clear Screen</button>
+      <!-- Visual Lifecycle Stepper -->
+      <nav aria-label="Workflow Stages" class="pipeline-stepper glass-panel" id="pipeline-stepper">
+        <div class="step-node" id="step-node-1">
+          <div class="step-indicator">1</div>
+          <div class="step-info">
+            <span class="step-name">Discovery & Interrogation</span>
+            <span class="step-actor">Agent C (Supervisor)</span>
+          </div>
+          <div class="step-connector"></div>
         </div>
-        <div class="screen-messages-container" id="feed-screen-c">
-          <div class="feed-card card-agent-c">
-            <div class="feed-card-header">
-              <div class="feed-card-title">
-                <span class="badge-c">Agent C (Supervisor)</span>
-                <span style="font-size: 0.85rem; color: #cbd5e1;">System Status & Readiness</span>
+
+        <div class="step-node" id="step-node-2">
+          <div class="step-indicator">2</div>
+          <div class="step-info">
+            <span class="step-name">Draft Implementation</span>
+            <span class="step-actor">Agent A (Creator)</span>
+          </div>
+          <div class="step-connector"></div>
+        </div>
+
+        <div class="step-node" id="step-node-3">
+          <div class="step-indicator">3</div>
+          <div class="step-info">
+            <span class="step-name">Critical Quality Audit</span>
+            <span class="step-actor">Agent B (Auditor)</span>
+          </div>
+          <div class="step-connector"></div>
+        </div>
+
+        <div class="step-node" id="step-node-4">
+          <div class="step-indicator">4</div>
+          <div class="step-info">
+            <span class="step-name">Quality Gate Decision</span>
+            <span class="step-actor">Agent C (Supervisor)</span>
+          </div>
+          <div class="step-connector"></div>
+        </div>
+
+        <div class="step-node" id="step-node-5">
+          <div class="step-indicator">5</div>
+          <div class="step-info">
+            <span class="step-name">Self-Correction Revision</span>
+            <span class="step-actor">Agent A (Creator)</span>
+          </div>
+          <div class="step-connector"></div>
+        </div>
+
+        <div class="step-node" id="step-node-6">
+          <div class="step-indicator">6</div>
+          <div class="step-info">
+            <span class="step-name">Final Sign-Off & SQLite</span>
+            <span class="step-actor">Triad Approval</span>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Tri-Agent Arena: 3 Dedicated Columns Side-by-Side -->
+      <section class="arena-grid">
+        <!-- COLUMN 1: AGENT C (SUPERVISOR) -->
+        <article class="agent-column col-c glass-panel" id="col-supervisor">
+          <header class="col-header">
+            <div class="col-header-top">
+              <div class="col-identity">
+                <div class="agent-avatar avatar-c">🧭</div>
+                <div class="agent-name-group">
+                  <span class="agent-tag-badge tag-c">Agent C · Meta-Orchestrator</span>
+                  <h3 class="agent-display-name">Supervisor Engine</h3>
+                  <span class="agent-role-desc">Capability Discovery & Directive Control</span>
+                </div>
               </div>
-              <span class="bubble-time">Initialized</span>
+              <span class="state-pill" id="state-pill-c">STANDBY</span>
             </div>
-            <div class="feed-card-body">
-              <strong>Supervisor ready.</strong> Laguna (Agent A) drafts. Nemotron (Agent B) scores it. If the score is under the gate, I tell Laguna to revise. Tokens and cost show above.
-              <br><br>
-              Type a task and press <strong>Run</strong>, or <strong>Chat</strong> to talk to me only.
+            <div class="col-telemetry">
+              <div class="col-stat">
+                <span class="col-stat-lbl">Directives:</span>
+                <span class="col-stat-val" id="c-directives">0</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Tokens:</span>
+                <span class="col-stat-val" id="c-tokens">0</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Cost:</span>
+                <span class="col-stat-val text-success" id="c-cost">$0.0000</span>
+              </div>
             </div>
-          </div>
-        </div>
+          </header>
 
-        <!-- Quick Scenario Chips -->
-        <div class="chat-suggestions">
-          <span class="chips-title">Quick Tasks:</span>
-          <button class="chip-btn" data-task="Design a resilient, high-throughput financial transaction processing engine with audit logging and rate limiting.">
-            💳 Financial Transaction Engine
-          </button>
-          <button class="chip-btn" data-task="Implement an asynchronous in-memory caching utility in Python with TTL expiration and LRU eviction policy.">
-            ⚡ Python Async LRU Cache
-          </button>
-          <button class="chip-btn" data-task="Draft a security-compliant multi-cloud Kubernetes deployment architecture proposal for an enterprise healthcare app.">
-            🏥 Healthcare Kubernetes Proposal
-          </button>
-          <button class="chip-btn" data-task="What are the discovered capabilities and models of Agent A and Agent B in SQLite?">
-            💬 Show Agent Capabilities
-          </button>
-        </div>
-
-        <!-- Unified Command & Input Console -->
-        <div class="unified-input-console">
-          <div class="input-row">
-            <textarea id="supervisor-task-input" rows="2" placeholder="Ask the supervisor, or describe a task for Laguna and Nemotron…"></textarea>
-            <div class="input-actions-group">
-              <button class="btn-primary btn-run-large" id="btn-run-workflow">
-                <span class="btn-icon">🚀</span>
-                <span id="btn-text">Run Multi-Agent Flow</span>
-              </button>
-              <button class="btn-secondary btn-chat-action" id="btn-send-c" title="Chat directly with Supervisor Agent C">
-                <span class="btn-icon">💬</span>
-                <span>Chat</span>
-              </button>
+          <div class="col-feed" id="feed-col-c">
+            <div class="arena-card">
+              <div class="arena-card-header">
+                <div class="card-title-group">
+                  <span class="card-step-tag tag-c">SUPERVISOR INITIALIZED</span>
+                  <strong style="color: var(--c-light);">System Readiness</strong>
+                </div>
+                <div class="card-meta-right">Boot Ready</div>
+              </div>
+              <div class="arena-card-body">
+                <strong>Agent C (Supervisor) is active.</strong><br>
+                When you launch a workflow, I will interrogate <strong>Agent A (Creator)</strong> and <strong>Agent B (Auditor)</strong> to discover their capabilities, dispatch tasks, audit evaluations against your acceptance gate, and command revisions if flaws are detected.
+              </div>
             </div>
           </div>
-          <div class="input-hint-row">
-            <span><strong>Enter</strong> runs Laguna, then Nemotron</span>
-            <span>•</span>
-            <span><strong>Chat</strong> talks to the supervisor only</span>
+
+          <footer class="col-footer-action">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Supervisor Directives Stream</span>
+            <button class="btn-col-clear" id="btn-clear-c">🧹 Clear Screen</button>
+          </footer>
+        </article>
+
+        <!-- COLUMN 2: AGENT A (CREATOR - OPENAI) -->
+        <article class="agent-column col-a glass-panel" id="col-creator">
+          <header class="col-header">
+            <div class="col-header-top">
+              <div class="col-identity">
+                <div class="agent-avatar avatar-a">⚡</div>
+                <div class="agent-name-group">
+                  <span class="agent-tag-badge tag-a">Agent A · Technical Creator</span>
+                  <h3 class="agent-display-name">OpenAI Implementer</h3>
+                  <span class="agent-role-desc">Code Architecture & Iterative Refinement</span>
+                </div>
+              </div>
+              <span class="state-pill" id="state-pill-a">IDLE</span>
+            </div>
+            <div class="col-telemetry">
+              <div class="col-stat">
+                <span class="col-stat-lbl">Revisions:</span>
+                <span class="col-stat-val" id="a-revisions">0</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Tokens:</span>
+                <span class="col-stat-val" id="a-tokens">0</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Cost:</span>
+                <span class="col-stat-val text-success" id="a-cost">$0.0000</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="col-feed" id="feed-col-a">
+            <div class="arena-card">
+              <div class="arena-card-header">
+                <div class="card-title-group">
+                  <span class="card-step-tag tag-a">CREATOR STANDBY</span>
+                  <strong style="color: var(--a-light);">OpenAI Implementer Ready</strong>
+                </div>
+                <div class="card-meta-right">Idle</div>
+              </div>
+              <div class="arena-card-body">
+                <strong>Agent A (Creator) is ready.</strong><br>
+                I handle technical drafting, full Python/system code implementations, and deliverable generation. When Agent B rejects a draft, I execute revised editions according to the Supervisor's corrective directives.
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
+
+          <footer class="col-footer-action">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Creator Code & Drafting Workspace</span>
+            <button class="btn-col-clear" id="btn-clear-a">🧹 Clear Screen</button>
+          </footer>
+        </article>
+
+        <!-- COLUMN 3: AGENT B (QUALITY AUDITOR - CLAUDE) -->
+        <article class="agent-column col-b glass-panel" id="col-auditor">
+          <header class="col-header">
+            <div class="col-header-top">
+              <div class="col-identity">
+                <div class="agent-avatar avatar-b">🛡️</div>
+                <div class="agent-name-group">
+                  <span class="agent-tag-badge tag-b">Agent B · Quality Auditor</span>
+                  <h3 class="agent-display-name">Claude Logic Inspector</h3>
+                  <span class="agent-role-desc">Adversarial Review & Quantitative Scoring</span>
+                </div>
+              </div>
+              <span class="state-pill" id="state-pill-b">IDLE</span>
+            </div>
+            <div class="col-telemetry">
+              <div class="col-stat">
+                <span class="col-stat-lbl">Last Score:</span>
+                <span class="col-stat-val" id="b-score">--</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Tokens:</span>
+                <span class="col-stat-val" id="b-tokens">0</span>
+              </div>
+              <div class="col-stat">
+                <span class="col-stat-lbl">Cost:</span>
+                <span class="col-stat-val text-success" id="b-cost">$0.0000</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="col-feed" id="feed-col-b">
+            <div class="arena-card">
+              <div class="arena-card-header">
+                <div class="card-title-group">
+                  <span class="card-step-tag tag-b">AUDITOR STANDBY</span>
+                  <strong style="color: var(--b-light);">Claude Quality Gate Ready</strong>
+                </div>
+                <div class="card-meta-right">Idle</div>
+              </div>
+              <div class="arena-card-body">
+                <strong>Agent B (Quality Auditor) is ready.</strong><br>
+                I examine deliverables for edge cases, performance bottlenecks, and security vulnerabilities. I assign a strict 0–100 quality score and issue precise, actionable feedback.
+              </div>
+            </div>
+          </div>
+
+          <footer class="col-footer-action">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Quality Audit & Flaw Detection Feed</span>
+            <button class="btn-col-clear" id="btn-clear-b">🧹 Clear Screen</button>
+          </footer>
+        </article>
+      </section>
+    </main>
 
     <!-- ======================================================== -->
-    <!-- TAB 2: SCREEN A - AGENT A (OPENAI / GPT-4o)               -->
+    <!-- VIEW 2: DIRECT AGENT SANDBOX / CHAT ROOM                -->
     <!-- ======================================================== -->
-    <section class="tab-content" id="tab-screen-a">
-      <div class="agent-screen glass-panel screen-a-theme">
-        <!-- Screen Header -->
-        <div class="screen-header">
-          <div class="screen-title-group">
-            <span class="agent-badge badge-a">AGENT A · LAGUNA</span>
-            <h2 class="screen-agent-title">Creator & Software Implementer</h2>
-            <span class="agent-state-pill" id="agent-a-state">IDLE</span>
-          </div>
-          <div class="screen-telemetry">
-            <div class="screen-metric-box">
-              <span class="sm-label">MODEL</span>
-              <span class="sm-val" id="screen-a-model-tag">laguna-s-2.1</span>
+    <section class="tab-content" id="tab-sandbox">
+      <div class="sandbox-layout">
+        <!-- Sidebar: Agent Dossier Cards -->
+        <aside class="sandbox-sidebar glass-panel">
+          <div class="sandbox-side-title">Select Conversation Partner</div>
+
+          <div class="dossier-card dossier-triad active" data-target="triad" id="dossier-triad">
+            <div class="dossier-top">
+              <div class="agent-avatar avatar-c" style="width: 32px; height: 32px; font-size: 0.95rem;">🌐</div>
+              <div class="dossier-info">
+                <span class="dossier-name">Triad Council</span>
+                <span class="dossier-role">Supervisor + Creator + Auditor</span>
+              </div>
             </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">AGENT A TOKENS</span>
-              <span class="sm-val" id="agent-a-tokens">0</span>
-            </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">AGENT A COST</span>
-              <span class="sm-val text-success" id="agent-a-cost">$0.0000</span>
+            <p style="font-size: 0.72rem; color: var(--text-muted);">Coordinate all three agents simultaneously in a collaborative thread.</p>
+            <div class="dossier-tags">
+              <span class="dossier-tag">Multi-Agent</span>
+              <span class="dossier-tag">Triad</span>
             </div>
           </div>
-        </div>
 
-        <!-- Capabilities Strip -->
-        <div class="agent-capabilities-strip">
-          <span class="cap-tag">Technical Proposals</span>
-          <span class="cap-tag">Python & Architecture Code</span>
-          <span class="cap-tag">Self-Correction & Revisions</span>
-          <span class="cap-tag">Laguna S 2.1</span>
-        </div>
-
-        <!-- Agent A Feed -->
-        <div class="screen-feed-label">
-          <span>Chat with Laguna</span>
-          <button class="btn-secondary" id="btn-clear-feed-a" style="padding: 2px 8px; font-size: 0.75rem;">Clear Screen</button>
-        </div>
-        <div class="screen-messages-container" id="feed-screen-a">
-          <div class="feed-card">
-            <div class="feed-card-header">
-              <span class="badge-a">Laguna</span>
-              <span class="bubble-time">Online</span>
+          <div class="dossier-card" data-target="supervisor" id="dossier-supervisor">
+            <div class="dossier-top">
+              <div class="agent-avatar avatar-c" style="width: 32px; height: 32px; font-size: 0.95rem;">🧭</div>
+              <div class="dossier-info">
+                <span class="dossier-name">Agent C · Supervisor</span>
+                <span class="dossier-role">Meta-Orchestrator Engine</span>
+              </div>
             </div>
-            <div class="feed-card-body">
-              I am <strong>Laguna S 2.1</strong>. Send a prompt and I will answer it. A spinner stays here until the reply arrives.
+            <p style="font-size: 0.72rem; color: var(--text-muted);">Ask about registered agent capabilities, telemetry costs, or workflow directives.</p>
+            <div class="dossier-tags">
+              <span class="dossier-tag">Discovery</span>
+              <span class="dossier-tag">Cost Tracking</span>
+              <span class="dossier-tag">Quality Gate</span>
             </div>
           </div>
-        </div>
 
-        <!-- Agent A Suggestions -->
-        <div class="chat-suggestions">
-          <span class="chips-title">Prompts for Agent A:</span>
-          <button class="prompt-chip-a" data-prompt="Write a Python Redis caching utility with TTL and LRU eviction policy.">
-            ⚡ Python Redis Cache
-          </button>
-          <button class="prompt-chip-a" data-prompt="Draft a microservices architecture with Kafka event streaming and dead letter queue.">
-            📦 Kafka Microservices
-          </button>
-          <button class="prompt-chip-a" data-prompt="Write an async HTTP client with exponential backoff and jitter in Python.">
-            🔄 Async Retry Client
-          </button>
-        </div>
+          <div class="dossier-card dossier-a" data-target="agent_a" id="dossier-agent-a">
+            <div class="dossier-top">
+              <div class="agent-avatar avatar-a" style="width: 32px; height: 32px; font-size: 0.95rem;">⚡</div>
+              <div class="dossier-info">
+                <span class="dossier-name">Agent A · Creator</span>
+                <span class="dossier-role">OpenAI Technical Implementer</span>
+              </div>
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted);">Request code implementations, system architectures, or technical drafting.</p>
+            <div class="dossier-tags">
+              <span class="dossier-tag">Python & Async</span>
+              <span class="dossier-tag">Architecture</span>
+              <span class="dossier-tag">Refinement</span>
+            </div>
+          </div>
 
-        <!-- Agent A Unified Input Console -->
-        <div class="unified-input-console">
-          <div class="input-row">
-            <textarea id="input-chat-a" rows="2" placeholder="Message Laguna… (Enter to send)"></textarea>
-            <button class="btn-primary btn-a-theme btn-run-large" id="btn-send-a">
-              <span class="btn-icon">➤</span>
-              <span>Prompt Agent A</span>
+          <div class="dossier-card dossier-b" data-target="agent_b" id="dossier-agent-b">
+            <div class="dossier-top">
+              <div class="agent-avatar avatar-b" style="width: 32px; height: 32px; font-size: 0.95rem;">🛡️</div>
+              <div class="dossier-info">
+                <span class="dossier-name">Agent B · Quality Auditor</span>
+                <span class="dossier-role">Claude Logic & Quality Gate</span>
+              </div>
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted);">Ask for critical evaluations, security audits, failure analysis, or SLAs.</p>
+            <div class="dossier-tags">
+              <span class="dossier-tag">Vulnerability Audit</span>
+              <span class="dossier-tag">0-100 Score</span>
+              <span class="dossier-tag">Edge Cases</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Chat Arena -->
+        <div class="sandbox-main glass-panel">
+          <div class="chat-arena-header">
+            <div class="chat-active-target">
+              <div class="agent-avatar avatar-c" id="chat-header-avatar">🌐</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700;" id="chat-header-title">Triad Council (Collaborative Chat)</h3>
+                <p style="font-size: 0.75rem; color: var(--text-muted);" id="chat-header-desc">Supervisor routes directives, Creator produces deliverables, Auditor inspects.</p>
+              </div>
+            </div>
+            <button class="btn-refresh" id="btn-clear-chat">🧹 Clear Chat</button>
+          </div>
+
+          <!-- Messages Stream -->
+          <div class="chat-messages-scroll" id="chat-messages-container">
+            <div class="arena-card">
+              <div class="arena-card-header">
+                <span class="card-step-tag tag-c">TRIAD COUNCIL</span>
+                <span class="bubble-time">Connected</span>
+              </div>
+              <div class="arena-card-body">
+                Welcome to the <strong>Agent Sandbox</strong>. Select an individual agent on the left or talk to all three simultaneously. Type your inquiry below.
+              </div>
+            </div>
+          </div>
+
+          <!-- Suggestions Chips Bar -->
+          <div class="chat-suggestions-bar" id="chat-suggestions-row">
+            <span class="preset-label">Suggested:</span>
+            <button class="chat-suggest-btn" data-chat-prompt="Explain how Agent C commands Agent A to revise low-scoring drafts.">
+              🔄 How does revision loop work?
+            </button>
+            <button class="chat-suggest-btn" data-chat-prompt="What are the discovered capabilities of Agent A and Agent B in SQLite?">
+              📋 List Agent Capabilities
+            </button>
+            <button class="chat-suggest-btn" data-chat-prompt="Audit this requirement: high-frequency distributed locks with Redis and TTL.">
+              🛡️ Audit Distributed Locks
             </button>
           </div>
-          <div class="input-hint-row">
-            <span><strong>Enter</strong> sends this message to Laguna</span>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- ======================================================== -->
-    <!-- TAB 3: SCREEN B - AGENT B (ANTHROPIC CLAUDE 3.5 SONNET)   -->
-    <!-- ======================================================== -->
-    <section class="tab-content" id="tab-screen-b">
-      <div class="agent-screen glass-panel screen-b-theme">
-        <!-- Screen Header -->
-        <div class="screen-header">
-          <div class="screen-title-group">
-            <span class="agent-badge badge-b">AGENT B · NEMOTRON</span>
-            <h2 class="screen-agent-title">Quality Auditor & Critical Evaluator</h2>
-            <span class="agent-state-pill" id="agent-b-state">IDLE</span>
-          </div>
-          <div class="screen-telemetry">
-            <div class="screen-metric-box">
-              <span class="sm-label">MODEL</span>
-              <span class="sm-val" id="screen-b-model-tag">nemotron-3-ultra</span>
-            </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">AGENT B TOKENS</span>
-              <span class="sm-val" id="agent-b-tokens">0</span>
-            </div>
-            <div class="screen-metric-box">
-              <span class="sm-label">AGENT B COST</span>
-              <span class="sm-val text-success" id="agent-b-cost">$0.0000</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Capabilities Strip -->
-        <div class="agent-capabilities-strip">
-          <span class="cap-tag">Quantitative Scoring (0-100)</span>
-          <span class="cap-tag">Flaw & Edge-Case Discovery</span>
-          <span class="cap-tag">Security & Logic Verification</span>
-          <span class="cap-tag">Nemotron 3 Ultra</span>
-        </div>
-
-        <!-- Agent B Feed -->
-        <div class="screen-feed-label">
-          <span>Chat with Nemotron</span>
-          <button class="btn-secondary" id="btn-clear-feed-b" style="padding: 2px 8px; font-size: 0.75rem;">Clear Screen</button>
-        </div>
-        <div class="screen-messages-container" id="feed-screen-b">
-          <div class="feed-card card-agent-b">
-            <div class="feed-card-header">
-              <div class="feed-card-title">
-                <span class="badge-b">Nemotron</span>
-                <span style="font-size: 0.85rem; color: #cbd5e1;">Quality Auditor Status</span>
-              </div>
-              <span class="bubble-time">Online</span>
-            </div>
-            <div class="feed-card-body">
-              I am <strong>Nemotron 3 Ultra</strong>. Send a prompt and I will review it. A spinner stays here until the reply arrives.
-            </div>
-          </div>
-        </div>
-
-        <!-- Agent B Suggestions -->
-        <div class="chat-suggestions">
-          <span class="chips-title">Prompts for Agent B:</span>
-          <button class="prompt-chip-b" data-prompt="What critical vulnerabilities and failure modes should I test in a distributed event bus?">
-            🛡️ Distributed Failures Check
-          </button>
-          <button class="prompt-chip-b" data-prompt="What quantitative SLAs and latency targets (P95/P99) should an enterprise API guarantee?">
-            ⏱️ Production SLAs Criteria
-          </button>
-          <button class="prompt-chip-b" data-prompt="Review the Netflix Hystrix circuit breaker pattern and explain ideal threshold parameters.">
-            ⚡ Circuit Breaker Review
-          </button>
-        </div>
-
-        <!-- Agent B Unified Input Console -->
-        <div class="unified-input-console">
-          <div class="input-row">
-            <textarea id="input-chat-b" rows="2" placeholder="Message Nemotron… (Enter to send)"></textarea>
-            <button class="btn-primary btn-b-theme btn-run-large" id="btn-send-b">
-              <span class="btn-icon">➤</span>
-              <span>Prompt Agent B</span>
+          <!-- Input Bar -->
+          <div class="chat-input-bar">
+            <input type="text" class="chat-input-field" id="chat-input" placeholder="Type a message to the active agent... (Press Enter to send)">
+            <button class="btn-chat-send" id="btn-chat-send">
+              <span>Send</span>
+              <span>➤</span>
             </button>
           </div>
-          <div class="input-hint-row">
-            <span><strong>Enter</strong> sends this message to Nemotron</span>
-          </div>
         </div>
       </div>
     </section>
 
     <!-- ======================================================== -->
-    <!-- TAB 4: 3-SCREEN SPLIT VIEW (ALL THREE SCREENS SIDE-BY-SIDE)-->
-    <!-- ======================================================== -->
-    <section class="tab-content" id="tab-screen-split">
-      <div class="split-view-banner glass-panel">
-        <div>
-          <h2 style="font-size: 1.15rem; font-weight: 700;">All three at once</h2>
-          <p class="brand-subtitle">Supervisor, Laguna, and Nemotron, side by side.</p>
-        </div>
-        <div class="split-view-actions">
-          <span class="chip-label">ACTIVE RUN: <strong id="split-run-id" style="color: #38bdf8;">None</strong></span>
-        </div>
-      </div>
-
-      <div class="three-screens-grid">
-        <!-- Screen C Column -->
-        <div class="pane-column screen-c-theme glass-panel">
-          <div class="pane-header">
-            <span class="badge-c">SUPERVISOR</span>
-            <span class="agent-state-pill" id="split-state-c">STANDBY</span>
-          </div>
-          <div class="pane-messages" id="split-feed-c">
-            <div class="pane-intro">Supervisor coordination logs, capability discovery, and rework directives appear here.</div>
-          </div>
-        </div>
-
-        <!-- Screen A Column -->
-        <div class="pane-column screen-a-theme glass-panel">
-          <div class="pane-header">
-            <span class="badge-a">LAGUNA</span>
-            <span class="agent-state-pill" id="split-state-a">IDLE</span>
-          </div>
-          <div class="pane-messages" id="split-feed-a">
-            <div class="pane-intro">Laguna’s drafts show up here.</div>
-          </div>
-        </div>
-
-        <!-- Screen B Column -->
-        <div class="pane-column screen-b-theme glass-panel">
-          <div class="pane-header">
-            <span class="badge-b">NEMOTRON</span>
-            <span class="agent-state-pill" id="split-state-b">IDLE</span>
-          </div>
-          <div class="pane-messages" id="split-feed-b">
-            <div class="pane-intro">Nemotron’s scores show up here.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Split View Bottom Task Launcher -->
-      <div class="unified-input-console glass-panel" style="margin-top: 14px; padding: 14px 18px;">
-        <div class="input-row">
-          <textarea id="input-split-task" rows="2" placeholder="Launch a task across all 3 screens simultaneously (e.g. 'Implement an async LRU cache with TTL in Python')..."></textarea>
-          <button class="btn-primary btn-run-large" id="btn-split-run">
-            <span class="btn-icon">⚡</span>
-            <span>Execute Across All 3</span>
-          </button>
-        </div>
-        <div class="input-hint-row">
-          <span>Press <strong>Enter ↵</strong> to run flow</span>
-          <span>•</span>
-          <span>Watch Agent C direct, Agent A draft, and Agent B audit in real time across the 3 screens above!</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======================================================== -->
-    <!-- TAB 5: SQLite Database Explorer                          -->
+    <!-- VIEW 3: SQLITE DATABASE INSPECTOR                       -->
     <!-- ======================================================== -->
     <section class="tab-content" id="tab-database">
-      <div class="database-shell glass-panel">
-        <div class="db-header">
+      <div class="db-shell glass-panel">
+        <div class="db-top-bar">
           <div>
-            <h2 class="control-title">SQLite Database Inspector (orchestration.db)</h2>
-            <p class="brand-subtitle">Persistent tables storing discovered agent capabilities, execution runs, step logs, and quality evaluations.</p>
+            <h2 style="font-size: 1.15rem; font-weight: 700;">SQLite Relational Audit Ledger (orchestration.db)</h2>
+            <p class="brand-subtitle">Persistent records of discovered agent profiles, execution steps, evaluations, and token costs.</p>
           </div>
-          <button class="btn-secondary" id="btn-refresh-db">Refresh Tables</button>
-        </div>
-
-        <div class="db-subtabs">
-          <button class="subtab-btn active" data-dbtab="dbtab-runs">Runs History (runs)</button>
-          <button class="subtab-btn" data-dbtab="dbtab-agents">Agent Registry (agents)</button>
-        </div>
-
-        <div class="dbtab-content active" id="dbtab-runs">
-          <div class="table-responsive">
-            <table class="data-table" id="runs-table">
-              <thead>
-                <tr>
-                  <th>Run ID</th>
-                  <th>Task Objective</th>
-                  <th>Status</th>
-                  <th>Revisions</th>
-                  <th>Total Tokens</th>
-                  <th>Total Cost (USD)</th>
-                  <th>Timestamp</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="runs-tbody">
-                <tr><td colspan="8" class="text-center text-dim">Loading runs...</td></tr>
-              </tbody>
-            </table>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="db-subnav">
+              <button class="db-tab-btn active" data-dbtab="dbtab-runs" id="dbtab-runs-btn">Execution Runs</button>
+              <button class="db-tab-btn" data-dbtab="dbtab-agents" id="dbtab-agents-btn">Discovered Registry</button>
+            </div>
+            <button class="btn-refresh" id="btn-refresh-db">
+              <span>↻</span>
+              <span>Refresh Tables</span>
+            </button>
           </div>
         </div>
 
-        <div class="dbtab-content" id="dbtab-agents">
-          <div class="table-responsive">
-            <table class="data-table" id="agents-table">
-              <thead>
-                <tr>
-                  <th>Agent Name</th>
-                  <th>Provider</th>
-                  <th>Model</th>
-                  <th>Role</th>
-                  <th>Capabilities</th>
-                  <th>Last Registered</th>
-                </tr>
-              </thead>
-              <tbody id="agents-tbody">
-                <tr><td colspan="6" class="text-center text-dim">Loading agent registry...</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Table 1: Runs History -->
+        <div class="table-wrapper" id="container-dbtab-runs">
+          <table class="nexus-table">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Task Objective</th>
+                <th>Status</th>
+                <th>Revisions</th>
+                <th>Total Tokens</th>
+                <th>Total Cost</th>
+                <th>Timestamp</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="runs-tbody">
+              <tr><td colspan="8" class="text-center text-dim">Loading execution runs...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table 2: Agents Registry -->
+        <div class="table-wrapper" id="container-dbtab-agents" style="display: none;">
+          <table class="nexus-table">
+            <thead>
+              <tr>
+                <th>Agent Name</th>
+                <th>Provider</th>
+                <th>Model</th>
+                <th>Role</th>
+                <th>Capabilities</th>
+                <th>Registered Status</th>
+              </tr>
+            </thead>
+            <tbody id="agents-tbody">
+              <tr><td colspan="6" class="text-center text-dim">Loading agent registry...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
 
     <!-- ======================================================== -->
-    <!-- TAB 6: Client Architecture Guide                         -->
+    <!-- VIEW 4: SYSTEM ARCHITECTURE & A2A GUIDE                 -->
     <!-- ======================================================== -->
     <section class="tab-content" id="tab-guide">
-      <div class="guide-shell glass-panel">
-        <h2>Multi-Agent Orchestration Architecture</h2>
-        <p class="guide-intro">This system implements the exact architecture requested by your client: an autonomous Supervisor Agent coordinating specialized OpenAI and Claude agents across 3 dedicated screens with full observability, self-correction, and token cost tracking.</p>
+      <div class="arch-shell glass-panel">
+        <div class="arch-header">
+          <h2>Autonomous Multi-Agent Architecture & Protocol</h2>
+          <p class="brand-subtitle">Overview of the 3-agent orchestration engine, A2A communication, and self-correction loops.</p>
+        </div>
 
-        <div class="guide-grid">
-          <div class="guide-card">
-            <div class="guide-card-icon">1</div>
-            <h3>Discovery & Registry</h3>
-            <p><strong>Agent C (Supervisor)</strong> queries Agent A (OpenAI) and Agent B (Claude) on startup: <em>"What do you do?"</em>. Capabilities, models, and metadata are automatically recorded in an SQLite database (<code>orchestration.db</code>).</p>
+        <div class="arch-cards-grid">
+          <div class="arch-feature-card">
+            <div class="afc-num">1</div>
+            <h3 class="afc-title">Dynamic Discovery & Interrogation</h3>
+            <p class="afc-body">
+              At workflow startup, <strong>Agent C (Supervisor)</strong> queries Agent A (OpenAI) and Agent B (Claude): <em>"What do you do?"</em>. Profiles, models, and capabilities are registered in SQLite (<code>orchestration.db</code>).
+            </p>
           </div>
 
-          <div class="guide-card">
-            <div class="guide-card-icon">2</div>
-            <h3>Task Assignment & Audit</h3>
-            <p>Agent C assigns the objective to <strong>Agent A</strong>, tracks execution state on Screen A, and routes the draft to <strong>Agent B (Claude)</strong> on Screen B for comprehensive verification and quantitative scoring (0-100).</p>
+          <div class="arch-feature-card">
+            <div class="afc-num">2</div>
+            <h3 class="afc-title">Task Dispatch & Technical Drafting</h3>
+            <p class="afc-body">
+              Agent C dispatches the task objective to <strong>Agent A (OpenAI)</strong>. Agent A acts as the primary builder, generating technical proposals, architecture designs, and Python implementations.
+            </p>
           </div>
 
-          <div class="guide-card">
-            <div class="guide-card-icon">3</div>
-            <h3>Self-Correction / Feedback Loop</h3>
-            <p>If Agent B discovers flaws or assigns a score below threshold: <strong>Agent C intervenes</strong>! C formats precise corrective guidance and instructs Agent A to execute Revision 2. The cycle repeats until approved.</p>
+          <div class="arch-feature-card">
+            <div class="afc-num">3</div>
+            <h3 class="afc-title">Quantitative Quality Gate</h3>
+            <p class="afc-body">
+              The draft is routed to <strong>Agent B (Claude)</strong> for comprehensive verification. Claude inspects edge-cases, vulnerability points, and outputs a quantitative score (0–100) with actionable recommendations.
+            </p>
           </div>
 
-          <div class="guide-card">
-            <div class="guide-card-icon">4</div>
-            <h3>Token & USD Cost Telemetry</h3>
-            <p>Every token generated by OpenAI and Claude is tallied with official model pricing. Exact expenditures for Agent A, Agent B, and Agent C are tracked per step and aggregated for audit compliance.</p>
+          <div class="arch-feature-card">
+            <div class="afc-num">4</div>
+            <h3 class="afc-title">Supervisor Self-Correction Loop</h3>
+            <p class="afc-body">
+              If Claude's quality score falls below the user's Acceptance Gate (e.g. 80), <strong>Agent C intervenes</strong>! The Supervisor commands Agent A to execute Revision 2 addressing the flaws until approval is achieved.
+            </p>
           </div>
         </div>
 
-        <div class="guide-config-box">
-          <h3>How to Switch to Live API Keys:</h3>
-          <p>The system is pre-configured with a realistic zero-cost simulation mode so anyone can test it immediately. To connect real API keys:</p>
-          <pre class="code-box"><code># In the project root, open .env and set your keys:
-OPENAI_API_KEY=sk-proj-your-openai-key-here
-ANTHROPIC_API_KEY=sk-ant-your-claude-key-here
-SIMULATION_MODE=false</code></pre>
-          <p>Then restart the server or uncheck "Simulation Mode" in the dashboard.</p>
+        <div class="glass-panel" style="padding: 20px; border: 1px solid var(--border-medium);">
+          <h3 style="font-size: 1rem; margin-bottom: 8px; color: var(--c-light);">Switching between Simulation Mode & Live API Mode:</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            The console includes an autonomous simulation engine so you can test complete end-to-end workflows with zero API costs. To connect your live API keys:
+          </p>
+          <pre class="arch-code-box"><code># In the root .env file, add your OpenAI and Anthropic API keys:
+OPENAI_API_KEY=sk-proj-your-openai-api-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key
+
+# Then switch the "Live API Mode" toggle in the top-right header!</code></pre>
         </div>
       </div>
     </section>
   </div>
 
-  <!-- Detail Modal -->
-  <div class="modal-backdrop" id="run-modal" style="display: none;">
-    <div class="modal-card glass-panel">
+  <!-- Run Telemetry Inspector Modal -->
+  <div class="modal-overlay" id="run-modal" style="display: none;">
+    <div class="modal-window glass-panel">
       <div class="modal-header">
-        <h3 id="modal-title">Run Details</h3>
-        <button class="modal-close-btn" id="modal-close">&times;</button>
+        <h3 class="modal-title" id="modal-run-title">Run Telemetry Inspector</h3>
+        <button class="modal-close-btn" id="modal-close-btn">&times;</button>
       </div>
-      <div class="modal-body" id="modal-content">
-        Loading...
+      <div class="modal-body" id="modal-run-body">
+        Loading run records...
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=20260930_ui3"></script>
+  <script src="app.js?v=20261001_v5"></script>
 </body>
 </html>

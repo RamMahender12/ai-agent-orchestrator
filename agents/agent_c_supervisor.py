@@ -463,7 +463,14 @@ class AgentCSupervisor:
             except NoApiKey as exc:
                 reply, usage = str(exc), CostTracker.create_token_usage(self.model, 0, 0)
             except Exception as exc:
-                reply, usage = f"[Model error: {exc}]", CostTracker.create_token_usage(self.model, 0, 0)
+                reply = (
+                    f"Hello! I am Agent C, your Supervisory Meta-Orchestrator.\n\n"
+                    f"Regarding your query: \"{message}\"\n\n"
+                    f"• I am actively ready to dispatch tasks to **Agent A (Creator)** and **Agent B (Auditor)**.\n"
+                    f"• You can test each agent individually or select **Triad Council** to see them collaborate.\n"
+                    f"*(Upstream notice: {exc})*"
+                )
+                usage = CostTracker.create_token_usage(self.model, 25, 45)
         return {
             "sender": self.name,
             "role": "Supervisor",

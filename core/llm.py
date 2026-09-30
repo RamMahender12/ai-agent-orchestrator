@@ -49,24 +49,49 @@ def _messages(system: str, user: str, history: List[Dict[str, str]]) -> List[Dic
 def _chat(api_key: str, base_url: Optional[str], model: str, messages: List[Dict[str, str]]) -> Tuple[str, TokenUsage]:
     from openai import OpenAI
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-    try:
-        resp = client.chat.completions.create(model=model, messages=messages, temperature=0.7)
-    except Exception as exc:
-        text = str(exc)
-        if "FreeTierError" in text or "free tier" in text.lower():
-            raise RuntimeError(
-                "MiMo V2.6 and Nemotron 3 Ultra are free only inside the OpenCode app. "
-                "This key cannot call them from this project. Add credits and pick a paid OpenCode model, "
-                "or tell me which paid model to use for A and B."
-            ) from exc
-        raise
-    text = resp.choices[0].message.content or ""
-    usage = resp.usage
-    return text, CostTracker.create_token_usage(
-        model,
-        usage.prompt_tokens if usage else 0,
-        usage.completion_tokens if usage else 0,
-    )
+    
+    # Model candidates in priority order
+    candidates = [model]
+    if base_url and "openrouter.ai" in base_url:
+        for alt in [
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "poolside/laguna-s-2.1:free",
+            "nvidia/nemotron-3.5-lightning:free",
+            "poolside/laguna-xs-2.1:free",
+        ]:
+            if alt not in candidates:
+                candidates.append(alt)
+
+    last_exc = None
+    for cand in candidates:
+        try:
+            resp = client.chat.completions.create(model=cand, messages=messages, temperature=0.7)
+            if not getattr(resp, "choices", None) or not len(resp.choices):
+                continue
+            text = resp.choices[0].message.content or ""
+            if not text.strip():
+                continue
+            usage = resp.usage
+            return text, CostTracker.create_token_usage(
+                cand,
+                usage.prompt_tokens if usage else 0,
+                usage.completion_tokens if usage else 0,
+            )
+        except Exception as exc:
+            last_exc = exc
+            text = str(exc)
+            if "FreeTierError" in text or "free tier" in text.lower():
+                raise RuntimeError(
+                    "MiMo V2.6 and Nemotron 3 Ultra are free only inside the OpenCode app. "
+                    "This key cannot call them from this project. Add credits and pick a paid OpenCode model, "
+                    "or tell me which paid model to use for A and B."
+                ) from exc
+            # If rate-limited upstream or server error, continue to next candidate
+            continue
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError(f"All model endpoints failed to return a response for: {model}")
 
 
 def _pick_model(prefer: str, model: Optional[str]) -> str:

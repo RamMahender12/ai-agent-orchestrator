@@ -18,7 +18,7 @@ class AgentAOpenAI(BaseAgent):
     """
     def __init__(self, model: str = "poolside/laguna-s-2.1:free", simulation_mode: bool = True):
         super().__init__(
-            name="Laguna",
+            name="Agent A (Creator)",
             provider="OpenAI",
             model=model,
             role="Primary Generator & Technical Creator"

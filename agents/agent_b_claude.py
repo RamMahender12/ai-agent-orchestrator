@@ -18,7 +18,7 @@ class AgentBClaude(BaseAgent):
     """
     def __init__(self, model: str = "nvidia/nemotron-3-ultra-550b-a55b:free", simulation_mode: bool = True):
         super().__init__(
-            name="Nemotron",
+            name="Agent B (Auditor)",
             provider="Anthropic",
             model=model,
             role="Quality Auditor & Critical Evaluator"
