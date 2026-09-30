@@ -1,0 +1,23 @@
+# Netlify Configuration for Agent Nexus
+# Multi-Agent Supervisor & Cost Telemetry Dashboard
+
+[build]
+  # Folder containing the static assets (index.html, styles.css, app.js)
+  publish = "static"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+# Full-Stack Mode:
+# If you deploy the Python FastAPI backend to Render.com, Railway.app, or Fly.io,
+# uncomment the proxy redirect below and update the URL:
+#
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://your-backend-app.onrender.com/api/:splat"
+#   status = 200
+#   force = true
