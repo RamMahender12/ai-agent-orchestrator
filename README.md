@@ -125,6 +125,22 @@ SIMULATION_MODE=false
 
 ---
 
+## A2A protocol
+
+Clients use [Agent2Agent](https://a2a-protocol.org) JSON-RPC 2.0. Agent C is the client entrypoint. It reads A and B's agent cards, tasks them with `message/send`, writes every call to SQLite and `logs/a2a.jsonl`, and sums token cost from each task's `metadata.usage`. If B scores the draft under the threshold, C sends A another `message/send` with skill `revise`.
+
+| Agent | Card | RPC |
+| --- | --- | --- |
+| C supervisor | `GET /.well-known/agent-card.json` | `POST /a2a/c` |
+| A OpenAI | `GET /a2a/a/.well-known/agent-card.json` | `POST /a2a/a` |
+| B Claude | `GET /a2a/b/.well-known/agent-card.json` | `POST /a2a/b` |
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"role":"user","messageId":"m1","metadata":{"skill":"orchestrate"},"parts":[{"kind":"text","text":"Build a rate limiter"}]}}}
+```
+
+`tasks/get` reads one task. `tasks/list` is how C monitors in-process history. `tasks/cancel` cancels a task that is still running.
+
 ## 📊 Database Schema (`orchestration.db`)
 
 1. **`agents`**: Registry of discovered agent capabilities, provider, and model.

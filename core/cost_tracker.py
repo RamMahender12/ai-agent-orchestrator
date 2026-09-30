@@ -30,6 +30,8 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
         "input_per_million": 15.00,
         "output_per_million": 75.00
     },
+    "poolside/laguna-s-2.1:free": {"input_per_million": 0.0, "output_per_million": 0.0},
+    "nvidia/nemotron-3-ultra-550b-a55b:free": {"input_per_million": 0.0, "output_per_million": 0.0},
     # Supervisor Internal Meta Model
     "supervisor-engine": {
         "input_per_million": 1.00,

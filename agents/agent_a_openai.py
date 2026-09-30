@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from agents.base_agent import BaseAgent
 from core.models import AgentProfile, TokenUsage
 from core.cost_tracker import CostTracker
+from core.llm import NoApiKey, complete
 
 try:
     from openai import OpenAI
@@ -15,9 +16,9 @@ class AgentAOpenAI(BaseAgent):
     Acts as the Primary Creator / Worker that generates content, proposals, or code.
     Can receive feedback and generate revised versions.
     """
-    def __init__(self, model: str = "gpt-4o", simulation_mode: bool = True):
+    def __init__(self, model: str = "poolside/laguna-s-2.1:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent A (OpenAI)",
+            name="Laguna",
             provider="OpenAI",
             model=model,
             role="Primary Generator & Technical Creator"
@@ -49,24 +50,19 @@ class AgentAOpenAI(BaseAgent):
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
         """Interactive conversational interface with Agent A."""
         history = history or []
-        if not self.simulation_mode and self.client:
-            messages = [{"role": "system", "content": "You are Agent A, an expert OpenAI assistant specializing in software engineering, technical solutions, and content generation."}]
-            for h in history:
-                messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
-            messages.append({"role": "user", "content": message})
+        if not self.simulation_mode:
             try:
-                response = self.client.chat.completions.create(
+                return complete(
+                    "You are Agent A. Answer the user's prompt directly. Do not substitute a generic architecture essay.",
+                    message,
+                    history,
+                    prefer="openai",
                     model=self.model,
-                    messages=messages,
-                    temperature=0.7
                 )
-                content = response.choices[0].message.content or ""
-                p_tokens = response.usage.prompt_tokens if response.usage else CostTracker.estimate_tokens_from_text(message)
-                c_tokens = response.usage.completion_tokens if response.usage else CostTracker.estimate_tokens_from_text(content)
-                usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
-                return content, usage
-            except Exception as e:
-                return f"[OpenAI Error: {e}]", CostTracker.create_token_usage(self.model, 20, 20)
+            except NoApiKey as exc:
+                return str(exc), CostTracker.create_token_usage(self.model, 0, 0)
+            except Exception as exc:
+                return f"[Model error: {exc}]", CostTracker.create_token_usage(self.model, 0, 0)
         else:
             # Dynamic simulated response tailored to user query
             msg_lower = message.lower()
@@ -143,10 +139,9 @@ class AgentAOpenAI(BaseAgent):
         revision = context.get("revision", 1)
         feedback = context.get("feedback", None)
 
-        if not self.simulation_mode and self.client:
+        if not self.simulation_mode:
             return self._call_real_api(task, revision, feedback)
-        else:
-            return self._simulate_response(task, revision, feedback)
+        return self._simulate_response(task, revision, feedback)
 
     def _call_real_api(self, task: str, revision: int, feedback: Optional[str]) -> Tuple[str, TokenUsage]:
         system_prompt = (
@@ -162,23 +157,7 @@ class AgentAOpenAI(BaseAgent):
                 "Please address every criticism and generate an enhanced revision."
             )
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.7
-        )
-
-        content = response.choices[0].message.content or ""
-        p_tokens = response.usage.prompt_tokens if response.usage else CostTracker.estimate_tokens_from_text(user_prompt)
-        c_tokens = response.usage.completion_tokens if response.usage else CostTracker.estimate_tokens_from_text(content)
-
-        usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
-        return content, usage
+        return complete(system_prompt, user_prompt, prefer="openai", model=self.model)
 
     def _simulate_response(self, task: str, revision: int, feedback: Optional[str]) -> Tuple[str, TokenUsage]:
         """Realistic simulated generation reflecting iterative improvement."""

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 load_dotenv()
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,8 @@ from core.models import OrchestrationRun
 from agents.agent_a_openai import AgentAOpenAI
 from agents.agent_b_claude import AgentBClaude
 from agents.agent_c_supervisor import AgentCSupervisor
+from core import a2a as a2a_proto
+from core.llm import HELP, _key, has_api_key
 
 app = FastAPI(title="AI Agent Supervisor & Multi-Agent Orchestrator", version="1.0.0")
 
@@ -42,30 +44,33 @@ async def add_no_cache_headers(request, call_next):
     return response
 
 db = Database()
+_supervisor = AgentCSupervisor(database=db)
+_supervisor.bind_a2a()
 
 # Active SSE subscriber queues keyed by run_id
 run_queues: Dict[str, List[asyncio.Queue]] = {}
 
 class OrchestrationRequest(BaseModel):
     task: str
-    simulation_mode: bool = True
-    model_a: Optional[str] = "gpt-4o"
-    model_b: Optional[str] = "claude-3-5-sonnet-20241022"
+    simulation_mode: bool = False
+    model_a: Optional[str] = "poolside/laguna-s-2.1:free"
+    model_b: Optional[str] = "nvidia/nemotron-3-ultra-550b-a55b:free"
     quality_threshold: Optional[int] = 80
 
 @app.get("/api/health")
 async def health_check():
+    load_dotenv(override=True)
     return {
         "status": "healthy",
-        "has_openai_key": bool(os.getenv("OPENAI_API_KEY")),
-        "has_anthropic_key": bool(os.getenv("ANTHROPIC_API_KEY")),
-        "default_mode": "simulation" if os.getenv("SIMULATION_MODE", "true").lower() == "true" else "live"
+        "has_openai_key": bool(_key("OPENAI_API_KEY")),
+        "has_anthropic_key": bool(_key("ANTHROPIC_API_KEY")),
+        "default_mode": "live" if has_api_key() else "needs_key"
     }
 
 class ChatRequest(BaseModel):
     agent_target: str = "supervisor"  # "supervisor", "agent_a", "agent_b", "triad"
     message: str
-    simulation_mode: Optional[bool] = True
+    simulation_mode: Optional[bool] = False
     history: Optional[List[Dict[str, str]]] = None
 
 @app.post("/api/chat")
@@ -74,10 +79,8 @@ async def chat_with_agents(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    sim_mode = req.simulation_mode
-    if not sim_mode:
-        if not os.getenv("OPENAI_API_KEY") or not os.getenv("ANTHROPIC_API_KEY"):
-            sim_mode = True
+    load_dotenv(override=True)
+    sim_mode = bool(req.simulation_mode)
 
     agent_a = AgentAOpenAI(simulation_mode=sim_mode)
     agent_b = AgentBClaude(simulation_mode=sim_mode)
@@ -139,11 +142,10 @@ async def start_orchestration(req: OrchestrationRequest, background_tasks: Backg
     if not req.task.strip():
         raise HTTPException(status_code=400, detail="Task cannot be empty")
 
-    sim_mode = req.simulation_mode
-    # Auto-fallback if live selected but keys missing
-    if not sim_mode:
-        if not os.getenv("OPENAI_API_KEY") or not os.getenv("ANTHROPIC_API_KEY"):
-            sim_mode = True
+    load_dotenv(override=True)
+    sim_mode = bool(req.simulation_mode)
+    if not sim_mode and not has_api_key():
+        raise HTTPException(status_code=400, detail=HELP)
 
     # Pre-generate run_id so client can subscribe to SSE immediately
     import uuid
@@ -246,6 +248,36 @@ async def stream_run_events(run_id: str):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+@app.get("/.well-known/agent-card.json")
+async def root_agent_card(request: Request):
+    """A2A agent card for Agent C, the client-facing supervisor."""
+    return a2a_proto.router.public_card("c", str(request.base_url))
+
+
+@app.get("/a2a")
+async def a2a_catalog(request: Request):
+    base = str(request.base_url)
+    return {"agents": [a2a_proto.router.public_card(key, base) for key in ("a", "b", "c")]}
+
+
+@app.get("/a2a/{agent_id}/.well-known/agent-card.json")
+async def a2a_agent_card(agent_id: str, request: Request):
+    try:
+        return a2a_proto.router.public_card(agent_id, str(request.base_url))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'")
+
+
+@app.post("/a2a/{agent_id}")
+async def a2a_rpc(agent_id: str, request: Request):
+    """JSON-RPC 2.0: message/send, tasks/get, tasks/list, tasks/cancel."""
+    try:
+        body = json.loads(await request.body() or b"null")
+    except json.JSONDecodeError:
+        return JSONResponse(a2a_proto.rpc_error(None, -32700, "Parse error"))
+    return JSONResponse(a2a_proto.router.rpc(agent_id, body))
 
 
 # Static files mounting

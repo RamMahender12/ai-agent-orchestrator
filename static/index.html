@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260929_v5">
+  <link rel="stylesheet" href="styles.css?v=20260930_ui">
 
 </head>
 <body>
@@ -31,7 +31,7 @@
         </div>
         <div>
           <h1 class="brand-title">AGENT NEXUS</h1>
-          <p class="brand-subtitle">Dedicated 3-Screen Multi-Agent Supervisor & Cost Telemetry Engine</p>
+          <p class="brand-subtitle">Laguna writes, Nemotron reviews, Supervisor tracks cost</p>
         </div>
       </div>
 
@@ -51,9 +51,9 @@
         </div>
         <div class="mode-toggle-group" style="margin-left: 8px;">
           <label class="mode-toggle">
-            <input type="checkbox" id="mode-checkbox" checked>
+            <input type="checkbox" id="mode-checkbox">
             <span class="toggle-slider"></span>
-            <span class="toggle-label" id="mode-label">Simulation Mode</span>
+            <span class="toggle-label" id="mode-label">Live API Mode</span>
           </label>
         </div>
       </div>
@@ -62,19 +62,19 @@
     <!-- Navigation Tabs: 3 Separate Agent Screens + Split View + Database + Guide -->
     <nav class="nav-tabs glass-panel">
       <button class="nav-tab active" data-tab="tab-screen-c" id="nav-btn-c">
-        <span class="tab-icon">🤖</span> Screen C: Supervisor (Our Agent)
+        <span class="tab-icon">🤖</span> Supervisor
       </button>
       <button class="nav-tab" data-tab="tab-screen-a" id="nav-btn-a">
-        <span class="tab-icon">🟢</span> Screen A: OpenAI (Creator)
+        <span class="tab-icon">🟢</span> Laguna
       </button>
       <button class="nav-tab" data-tab="tab-screen-b" id="nav-btn-b">
-        <span class="tab-icon">🟣</span> Screen B: Claude (Auditor)
+        <span class="tab-icon">🟣</span> Nemotron
       </button>
       <button class="nav-tab highlight-tab" data-tab="tab-screen-split" id="nav-btn-split">
-        <span class="tab-icon">⚡</span> 3-Screen Split View (All 3)
+        <span class="tab-icon">⚡</span> All three
       </button>
       <button class="nav-tab" data-tab="tab-database" id="nav-btn-db">
-        <span class="tab-icon">🗄️</span> SQLite Registry & Runs
+        <span class="tab-icon">🗄️</span> Logs
       </button>
       <button class="nav-tab" data-tab="tab-guide" id="nav-btn-guide">
         <span class="tab-icon">📐</span> Architecture Guide
@@ -121,15 +121,13 @@
           <div class="setting-item">
             <label for="sel-model-a">Agent A (Creator Model):</label>
             <select id="sel-model-a" class="custom-select">
-              <option value="gpt-4o" selected>GPT-4o (OpenAI)</option>
-              <option value="gpt-4o-mini">GPT-4o-mini</option>
+              <option value="poolside/laguna-s-2.1:free" selected>Laguna S 2.1 (free)</option>
             </select>
           </div>
           <div class="setting-item">
             <label for="sel-model-b">Agent B (Auditor Model):</label>
             <select id="sel-model-b" class="custom-select">
-              <option value="claude-3-5-sonnet-20241022" selected>Claude 3.5 Sonnet</option>
-              <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+              <option value="nvidia/nemotron-3-ultra-550b-a55b:free" selected>Nemotron 3 Ultra (free)</option>
             </select>
           </div>
           <div class="setting-item setting-run-info">
@@ -153,9 +151,9 @@
               <span class="bubble-time">Initialized</span>
             </div>
             <div class="feed-card-body">
-              <strong>Supervisor Ready:</strong> I actively query Agent A (OpenAI) and Agent B (Claude) to record their capabilities into SQLite, monitor work in real time, track token costs, and <em>intervene with corrective instructions</em> whenever deliverables do not meet the quality acceptance bar.
+              <strong>Supervisor ready.</strong> Laguna (Agent A) drafts. Nemotron (Agent B) scores it. If the score is under the gate, I tell Laguna to revise. Tokens and cost show above.
               <br><br>
-              Type your goal or question below and click <strong>Run Multi-Agent Flow</strong> to watch the autonomous creator-auditor-supervisor loop in action!
+              Type a task and press <strong>Run</strong>, or <strong>Chat</strong> to talk to me only.
             </div>
           </div>
         </div>
@@ -180,7 +178,7 @@
         <!-- Unified Command & Input Console -->
         <div class="unified-input-console">
           <div class="input-row">
-            <textarea id="supervisor-task-input" rows="2" placeholder="Type any task or message for the Supervisor (e.g. 'Build an async event bus in Python' or 'What are Agent A and B capabilities?')..."></textarea>
+            <textarea id="supervisor-task-input" rows="2" placeholder="Ask the supervisor, or describe a task for Laguna and Nemotron…"></textarea>
             <div class="input-actions-group">
               <button class="btn-primary btn-run-large" id="btn-run-workflow">
                 <span class="btn-icon">🚀</span>
@@ -193,9 +191,9 @@
             </div>
           </div>
           <div class="input-hint-row">
-            <span>Press <strong>Enter ↵</strong> to Run Multi-Agent Flow</span>
+            <span><strong>Enter</strong> runs Laguna, then Nemotron</span>
             <span>•</span>
-            <span>Click <strong>Chat</strong> to speak directly to Supervisor</span>
+            <span><strong>Chat</strong> talks to the supervisor only</span>
           </div>
         </div>
       </div>
@@ -209,14 +207,14 @@
         <!-- Screen Header -->
         <div class="screen-header">
           <div class="screen-title-group">
-            <span class="agent-badge badge-a">AGENT A (OPENAI)</span>
+            <span class="agent-badge badge-a">AGENT A · LAGUNA</span>
             <h2 class="screen-agent-title">Creator & Software Implementer</h2>
             <span class="agent-state-pill" id="agent-a-state">IDLE</span>
           </div>
           <div class="screen-telemetry">
             <div class="screen-metric-box">
               <span class="sm-label">MODEL</span>
-              <span class="sm-val" id="screen-a-model-tag">gpt-4o</span>
+              <span class="sm-val" id="screen-a-model-tag">laguna-s-2.1</span>
             </div>
             <div class="screen-metric-box">
               <span class="sm-label">AGENT A TOKENS</span>
@@ -234,22 +232,22 @@
           <span class="cap-tag">Technical Proposals</span>
           <span class="cap-tag">Python & Architecture Code</span>
           <span class="cap-tag">Self-Correction & Revisions</span>
-          <span class="cap-tag">OpenAI GPT-4o</span>
+          <span class="cap-tag">Laguna S 2.1</span>
         </div>
 
         <!-- Agent A Feed -->
         <div class="screen-feed-label">
-          <span>Agent A Output & Conversation Log (Drafts & Revisions)</span>
+          <span>Chat with Laguna</span>
           <button class="btn-secondary" id="btn-clear-feed-a" style="padding: 2px 8px; font-size: 0.75rem;">Clear Screen</button>
         </div>
         <div class="screen-messages-container" id="feed-screen-a">
           <div class="feed-card">
             <div class="feed-card-header">
-              <span class="badge-a">Agent A (OpenAI)</span>
+              <span class="badge-a">Laguna</span>
               <span class="bubble-time">Online</span>
             </div>
             <div class="feed-card-body">
-              Hello! I am <strong>Agent A (OpenAI GPT-4o)</strong>. I draft solutions, write executable code architectures, and refine my work when given feedback by Supervisor Agent C. Send me a prompt below!
+              I am <strong>Laguna S 2.1</strong>. Send a prompt and I will answer it. A spinner stays here until the reply arrives.
             </div>
           </div>
         </div>
@@ -271,16 +269,14 @@
         <!-- Agent A Unified Input Console -->
         <div class="unified-input-console">
           <div class="input-row">
-            <textarea id="input-chat-a" rows="2" placeholder="Send prompt directly to Agent A (OpenAI GPT-4o)... (Press Enter to send)"></textarea>
+            <textarea id="input-chat-a" rows="2" placeholder="Message Laguna… (Enter to send)"></textarea>
             <button class="btn-primary btn-a-theme btn-run-large" id="btn-send-a">
               <span class="btn-icon">➤</span>
               <span>Prompt Agent A</span>
             </button>
           </div>
           <div class="input-hint-row">
-            <span>Press <strong>Enter ↵</strong> to send prompt to OpenAI Agent A</span>
-            <span>•</span>
-            <span>Agent A crafts technical proposals, executable code, and revisions</span>
+            <span><strong>Enter</strong> sends this message to Laguna</span>
           </div>
         </div>
       </div>
@@ -294,14 +290,14 @@
         <!-- Screen Header -->
         <div class="screen-header">
           <div class="screen-title-group">
-            <span class="agent-badge badge-b">AGENT B (CLAUDE)</span>
+            <span class="agent-badge badge-b">AGENT B · NEMOTRON</span>
             <h2 class="screen-agent-title">Quality Auditor & Critical Evaluator</h2>
             <span class="agent-state-pill" id="agent-b-state">IDLE</span>
           </div>
           <div class="screen-telemetry">
             <div class="screen-metric-box">
               <span class="sm-label">MODEL</span>
-              <span class="sm-val" id="screen-b-model-tag">claude-3-5-sonnet</span>
+              <span class="sm-val" id="screen-b-model-tag">nemotron-3-ultra</span>
             </div>
             <div class="screen-metric-box">
               <span class="sm-label">AGENT B TOKENS</span>
@@ -319,25 +315,25 @@
           <span class="cap-tag">Quantitative Scoring (0-100)</span>
           <span class="cap-tag">Flaw & Edge-Case Discovery</span>
           <span class="cap-tag">Security & Logic Verification</span>
-          <span class="cap-tag">Anthropic Claude 3.5</span>
+          <span class="cap-tag">Nemotron 3 Ultra</span>
         </div>
 
         <!-- Agent B Feed -->
         <div class="screen-feed-label">
-          <span>Agent B Audit Log & Criticisms</span>
+          <span>Chat with Nemotron</span>
           <button class="btn-secondary" id="btn-clear-feed-b" style="padding: 2px 8px; font-size: 0.75rem;">Clear Screen</button>
         </div>
         <div class="screen-messages-container" id="feed-screen-b">
           <div class="feed-card card-agent-b">
             <div class="feed-card-header">
               <div class="feed-card-title">
-                <span class="badge-b">Agent B (Claude)</span>
+                <span class="badge-b">Nemotron</span>
                 <span style="font-size: 0.85rem; color: #cbd5e1;">Quality Auditor Status</span>
               </div>
               <span class="bubble-time">Online</span>
             </div>
             <div class="feed-card-body">
-              Greetings! I am <strong>Agent B (Anthropic Claude 3.5 Sonnet)</strong>. I audit Agent A's deliverables for security gaps, missing SLAs, and architectural flaws, assigning a quantitative 0-100 score and advising Supervisor Agent C. Send me a prompt or audit query below!
+              I am <strong>Nemotron 3 Ultra</strong>. Send a prompt and I will review it. A spinner stays here until the reply arrives.
             </div>
           </div>
         </div>
@@ -359,16 +355,14 @@
         <!-- Agent B Unified Input Console -->
         <div class="unified-input-console">
           <div class="input-row">
-            <textarea id="input-chat-b" rows="2" placeholder="Send prompt directly to Agent B (Claude 3.5 Sonnet)... (Press Enter to send)"></textarea>
+            <textarea id="input-chat-b" rows="2" placeholder="Message Nemotron… (Enter to send)"></textarea>
             <button class="btn-primary btn-b-theme btn-run-large" id="btn-send-b">
               <span class="btn-icon">➤</span>
               <span>Prompt Agent B</span>
             </button>
           </div>
           <div class="input-hint-row">
-            <span>Press <strong>Enter ↵</strong> to send prompt to Claude Agent B</span>
-            <span>•</span>
-            <span>Agent B scores deliverables 0-100 and exposes edge-case vulnerabilities</span>
+            <span><strong>Enter</strong> sends this message to Nemotron</span>
           </div>
         </div>
       </div>
@@ -380,8 +374,8 @@
     <section class="tab-content" id="tab-screen-split">
       <div class="split-view-banner glass-panel">
         <div>
-          <h2 style="font-size: 1.15rem; font-weight: 700;">Panoramic 3-Screen Command Center</h2>
-          <p class="brand-subtitle">Simultaneous live view across Agent C (Supervisor), Agent A (OpenAI), and Agent B (Claude).</p>
+          <h2 style="font-size: 1.15rem; font-weight: 700;">All three at once</h2>
+          <p class="brand-subtitle">Supervisor, Laguna, and Nemotron, side by side.</p>
         </div>
         <div class="split-view-actions">
           <span class="chip-label">ACTIVE RUN: <strong id="split-run-id" style="color: #38bdf8;">None</strong></span>
@@ -392,7 +386,7 @@
         <!-- Screen C Column -->
         <div class="pane-column screen-c-theme glass-panel">
           <div class="pane-header">
-            <span class="badge-c">SCREEN C: SUPERVISOR</span>
+            <span class="badge-c">SUPERVISOR</span>
             <span class="agent-state-pill" id="split-state-c">STANDBY</span>
           </div>
           <div class="pane-messages" id="split-feed-c">
@@ -403,22 +397,22 @@
         <!-- Screen A Column -->
         <div class="pane-column screen-a-theme glass-panel">
           <div class="pane-header">
-            <span class="badge-a">SCREEN A: OPENAI</span>
+            <span class="badge-a">LAGUNA</span>
             <span class="agent-state-pill" id="split-state-a">IDLE</span>
           </div>
           <div class="pane-messages" id="split-feed-a">
-            <div class="pane-intro">OpenAI GPT-4o initial drafts (Revision 1) and perfected revisions (Revision 2) appear here.</div>
+            <div class="pane-intro">Laguna’s drafts show up here.</div>
           </div>
         </div>
 
         <!-- Screen B Column -->
         <div class="pane-column screen-b-theme glass-panel">
           <div class="pane-header">
-            <span class="badge-b">SCREEN B: CLAUDE</span>
+            <span class="badge-b">NEMOTRON</span>
             <span class="agent-state-pill" id="split-state-b">IDLE</span>
           </div>
           <div class="pane-messages" id="split-feed-b">
-            <div class="pane-intro">Anthropic Claude audit scorecards (0-100), flaw breakdowns, and sign-offs appear here.</div>
+            <div class="pane-intro">Nemotron’s scores show up here.</div>
           </div>
         </div>
       </div>
@@ -562,6 +556,6 @@ SIMULATION_MODE=false</code></pre>
     </div>
   </div>
 
-  <script src="app.js?v=20260929_v5"></script>
+  <script src="app.js?v=20260930_ui3"></script>
 </body>
 </html>

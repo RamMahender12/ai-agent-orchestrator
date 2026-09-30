@@ -206,8 +206,9 @@ document.addEventListener("DOMContentLoaded", () => {
       splitStateA.className = "agent-state-pill running";
     }
 
-    appendMessageCard(feedScreenA, "You", "User Prompt", message, null, "user");
-    appendMessageCard(splitFeedA, "You", "User Prompt", message, null, "user");
+    appendMessageCard(feedScreenA, "You", "You", message, null, "user");
+    appendMessageCard(splitFeedA, "You", "You", message, null, "user");
+    showLoader([feedScreenA, splitFeedA], "Laguna is writing…");
 
     try {
       if (isStandaloneMode) throw new Error("Standalone Netlify Mode");
@@ -217,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           agent_target: "agent_a",
           message: message,
-          simulation_mode: modeCheckbox ? modeCheckbox.checked : true
+          simulation_mode: modeCheckbox ? modeCheckbox.checked : false
         })
       });
 
@@ -225,19 +226,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       if (data.responses && data.responses.length) {
         const resp = data.responses[0];
-        appendMessageCard(feedScreenA, resp.sender, "Deliverable", resp.reply, resp.tokens, "agent-a");
-        appendMessageCard(splitFeedA, resp.sender, "Deliverable", resp.reply, resp.tokens, "agent-a");
+        appendMessageCard(feedScreenA, resp.sender, "Reply", resp.reply, resp.tokens, "agent-a");
+        appendMessageCard(splitFeedA, resp.sender, "Reply", resp.reply, resp.tokens, "agent-a");
 
         if (resp.tokens) {
           updateAgentATelemetry(resp.tokens);
         }
       }
     } catch (err) {
-      const simResp = getSimulatedAgentAReply(message);
-      appendMessageCard(feedScreenA, "Agent A (OpenAI)", "Deliverable (Autonomous)", simResp.reply, simResp.tokens, "agent-a");
-      appendMessageCard(splitFeedA, "Agent A (OpenAI)", "Deliverable (Autonomous)", simResp.reply, simResp.tokens, "agent-a");
-      if (simResp.tokens) updateAgentATelemetry(simResp.tokens);
+      if (!isStandaloneMode) {
+        appendMessageCard(feedScreenA, "Agent A (OpenAI)", "Error", err.message, null, "agent-a");
+        appendMessageCard(splitFeedA, "Agent A (OpenAI)", "Error", err.message, null, "agent-a");
+      } else {
+        const simResp = getSimulatedAgentAReply(message);
+        appendMessageCard(feedScreenA, "Agent A (OpenAI)", "Deliverable (Autonomous)", simResp.reply, simResp.tokens, "agent-a");
+        appendMessageCard(splitFeedA, "Agent A (OpenAI)", "Deliverable (Autonomous)", simResp.reply, simResp.tokens, "agent-a");
+        if (simResp.tokens) updateAgentATelemetry(simResp.tokens);
+      }
     } finally {
+      hideLoader([feedScreenA, splitFeedA]);
       if (btnSendA) {
         btnSendA.disabled = false;
         btnSendA.innerHTML = '<span class="btn-icon">➤</span><span>Prompt Agent A</span>';
@@ -303,8 +310,9 @@ document.addEventListener("DOMContentLoaded", () => {
       splitStateB.className = "agent-state-pill running";
     }
 
-    appendMessageCard(feedScreenB, "You", "User Prompt", message, null, "user");
-    appendMessageCard(splitFeedB, "You", "User Prompt", message, null, "user");
+    appendMessageCard(feedScreenB, "You", "You", message, null, "user");
+    appendMessageCard(splitFeedB, "You", "You", message, null, "user");
+    showLoader([feedScreenB, splitFeedB], "Nemotron is writing…");
 
     try {
       if (isStandaloneMode) throw new Error("Standalone Netlify Mode");
@@ -314,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           agent_target: "agent_b",
           message: message,
-          simulation_mode: modeCheckbox ? modeCheckbox.checked : true
+          simulation_mode: modeCheckbox ? modeCheckbox.checked : false
         })
       });
 
@@ -322,19 +330,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       if (data.responses && data.responses.length) {
         const resp = data.responses[0];
-        appendMessageCard(feedScreenB, resp.sender, "Audit & Analysis", resp.reply, resp.tokens, "agent-b");
-        appendMessageCard(splitFeedB, resp.sender, "Audit & Analysis", resp.reply, resp.tokens, "agent-b");
+        appendMessageCard(feedScreenB, resp.sender, "Reply", resp.reply, resp.tokens, "agent-b");
+        appendMessageCard(splitFeedB, resp.sender, "Reply", resp.reply, resp.tokens, "agent-b");
 
         if (resp.tokens) {
           updateAgentBTelemetry(resp.tokens);
         }
       }
     } catch (err) {
-      const simResp = getSimulatedAgentBReply(message);
-      appendMessageCard(feedScreenB, "Agent B (Claude)", "Audit & Analysis (Autonomous)", simResp.reply, simResp.tokens, "agent-b");
-      appendMessageCard(splitFeedB, "Agent B (Claude)", "Audit & Analysis (Autonomous)", simResp.reply, simResp.tokens, "agent-b");
-      if (simResp.tokens) updateAgentBTelemetry(simResp.tokens);
+      if (!isStandaloneMode) {
+        appendMessageCard(feedScreenB, "Agent B (Claude)", "Error", err.message, null, "agent-b");
+        appendMessageCard(splitFeedB, "Agent B (Claude)", "Error", err.message, null, "agent-b");
+      } else {
+        const simResp = getSimulatedAgentBReply(message);
+        appendMessageCard(feedScreenB, "Agent B (Claude)", "Audit & Analysis (Autonomous)", simResp.reply, simResp.tokens, "agent-b");
+        appendMessageCard(splitFeedB, "Agent B (Claude)", "Audit & Analysis (Autonomous)", simResp.reply, simResp.tokens, "agent-b");
+        if (simResp.tokens) updateAgentBTelemetry(simResp.tokens);
+      }
     } finally {
+      hideLoader([feedScreenB, splitFeedB]);
       if (btnSendB) {
         btnSendB.disabled = false;
         btnSendB.innerHTML = '<span class="btn-icon">➤</span><span>Prompt Agent B</span>';
@@ -417,8 +431,9 @@ document.addEventListener("DOMContentLoaded", () => {
       splitStateC.className = "agent-state-pill running";
     }
 
-    appendMessageCard(feedScreenC, "You", "Command to Supervisor", message, null, "user");
-    appendMessageCard(splitFeedC, "You", "Command to Supervisor", message, null, "user");
+    appendMessageCard(feedScreenC, "You", "You", message, null, "user");
+    appendMessageCard(splitFeedC, "You", "You", message, null, "user");
+    showLoader([feedScreenC, splitFeedC], "Supervisor is writing…");
 
     try {
       if (isStandaloneMode) throw new Error("Standalone Netlify Mode");
@@ -428,7 +443,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           agent_target: "supervisor",
           message: message,
-          simulation_mode: modeCheckbox ? modeCheckbox.checked : true
+          simulation_mode: modeCheckbox ? modeCheckbox.checked : false
         })
       });
 
@@ -436,19 +451,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       if (data.responses && data.responses.length) {
         const resp = data.responses[0];
-        appendMessageCard(feedScreenC, resp.sender, "Supervisor Directive", resp.reply, resp.tokens, "agent-c");
-        appendMessageCard(splitFeedC, resp.sender, "Supervisor Directive", resp.reply, resp.tokens, "agent-c");
+        appendMessageCard(feedScreenC, resp.sender, "Reply", resp.reply, resp.tokens, "agent-c");
+        appendMessageCard(splitFeedC, resp.sender, "Reply", resp.reply, resp.tokens, "agent-c");
 
         if (resp.tokens) {
           updateAgentCTelemetry(resp.tokens);
         }
       }
     } catch (err) {
-      const simResp = getSimulatedSupervisorReply(message);
-      appendMessageCard(feedScreenC, "Agent C (Supervisor)", "Supervisor Directive (Autonomous)", simResp.reply, simResp.tokens, "agent-c");
-      appendMessageCard(splitFeedC, "Agent C (Supervisor)", "Supervisor Directive (Autonomous)", simResp.reply, simResp.tokens, "agent-c");
-      if (simResp.tokens) updateAgentCTelemetry(simResp.tokens);
+      if (!isStandaloneMode) {
+        appendMessageCard(feedScreenC, "Agent C (Supervisor)", "Error", err.message, null, "agent-c");
+        appendMessageCard(splitFeedC, "Agent C (Supervisor)", "Error", err.message, null, "agent-c");
+      } else {
+        const simResp = getSimulatedSupervisorReply(message);
+        appendMessageCard(feedScreenC, "Agent C (Supervisor)", "Supervisor Directive (Autonomous)", simResp.reply, simResp.tokens, "agent-c");
+        appendMessageCard(splitFeedC, "Agent C (Supervisor)", "Supervisor Directive (Autonomous)", simResp.reply, simResp.tokens, "agent-c");
+        if (simResp.tokens) updateAgentCTelemetry(simResp.tokens);
+      }
     } finally {
+      hideLoader([feedScreenC, splitFeedC]);
       if (btnSendC) {
         btnSendC.disabled = false;
         btnSendC.innerHTML = '<span class="btn-icon">💬</span><span>Chat</span>';
@@ -490,14 +511,16 @@ document.addEventListener("DOMContentLoaded", () => {
       splitStateC.className = "agent-state-pill running";
     }
 
-    const simMode = modeCheckbox ? modeCheckbox.checked : true;
-    const modelA = selModelA ? selModelA.value : "gpt-4o";
-    const modelB = selModelB ? selModelB.value : "claude-3-5-sonnet-20241022";
+    const simMode = modeCheckbox ? modeCheckbox.checked : false;
+    const modelA = selModelA ? selModelA.value : "poolside/laguna-s-2.1:free";
+    const modelB = selModelB ? selModelB.value : "nvidia/nemotron-3-ultra-550b-a55b:free";
     const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 80;
 
     if (screenAModelTag) screenAModelTag.textContent = modelA;
     if (screenBModelTag) screenBModelTag.textContent = modelB;
 
+    const runFeeds = [feedScreenC, splitFeedC, feedScreenA, splitFeedA, feedScreenB, splitFeedB];
+    showLoader(runFeeds, "Starting Laguna and Nemotron…");
     try {
       if (isStandaloneMode) throw new Error("Standalone Netlify Mode");
       const res = await fetch("/api/orchestrate", {
@@ -512,7 +535,14 @@ document.addEventListener("DOMContentLoaded", () => {
         })
       });
 
-      if (!res.ok) throw new Error("Failed to initialize orchestration run");
+      if (!res.ok) {
+        let detail = "Failed to initialize orchestration run";
+        try {
+          const body = await res.json();
+          detail = body.detail || detail;
+        } catch (parseErr) { /* keep detail */ }
+        throw new Error(detail);
+      }
       const resData = await res.json();
       const runId = resData.run_id;
 
@@ -521,8 +551,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       connectOrchestrationStream(runId);
     } catch (err) {
-      console.info("Running in-browser multi-agent pipeline:", err.message);
-      runClientSideSimulationWorkflow(task, modelA, modelB, threshold);
+      if (isStandaloneMode) {
+        runClientSideSimulationWorkflow(task, modelA, modelB, threshold);
+        return;
+      }
+      hideLoader(runFeeds);
+      appendMessageCard(feedScreenC, "Agent C (Supervisor)", "Error", err.message, null, "agent-c");
+      appendMessageCard(splitFeedC, "Agent C (Supervisor)", "Error", err.message, null, "agent-c");
+      resetRunButtons();
     }
   }
 
@@ -569,6 +605,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleOrchestrationEvent(data) {
     const event = data.event;
+    hideLoader([feedScreenC, splitFeedC, feedScreenA, splitFeedA, feedScreenB, splitFeedB]);
 
     // Update Global Telemetry Counters
     if (data.total_tokens !== undefined) {
@@ -588,6 +625,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendMessageCard(feedScreenC, "Agent C (Supervisor)", "Capability Discovery", msg, data.step?.token_usage, "agent-c");
         appendMessageCard(splitFeedC, "Agent C (Supervisor)", "Capability Discovery", msg, data.step?.token_usage, "agent-c");
         if (data.step?.token_usage) updateAgentCTelemetry(data.step.token_usage);
+        showLoader([feedScreenA, splitFeedA], "Laguna is writing…");
         break;
       }
 
@@ -605,6 +643,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendMessageCard(splitFeedA, "Agent A (OpenAI)", title, data.draft, tokens, "agent-a");
 
         if (tokens) updateAgentATelemetry(tokens);
+        showLoader([feedScreenB, splitFeedB], "Nemotron is reviewing…");
         break;
       }
 
@@ -704,6 +743,25 @@ document.addEventListener("DOMContentLoaded", () => {
     agentCTotalCost += tokens.cost_usd || 0.0;
     agentCTokens.textContent = agentCTotalTokens.toLocaleString();
     agentCCost.textContent = `$${agentCTotalCost.toFixed(4)}`;
+  }
+
+  function showLoader(containers, label) {
+    (containers || []).forEach((container) => {
+      if (!container || container.querySelector("[data-loader]")) return;
+      const card = document.createElement("div");
+      card.className = "feed-card typing-card";
+      card.dataset.loader = "1";
+      card.innerHTML = `<div class="typing-row"><span class="typing-dots"><i></i><i></i><i></i></span><span>${escapeHtml(label)}</span></div>`;
+      container.appendChild(card);
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  function hideLoader(containers) {
+    (containers || []).forEach((container) => {
+      if (!container) return;
+      container.querySelectorAll("[data-loader]").forEach((node) => node.remove());
+    });
   }
 
   // Message Card Renderer
@@ -991,9 +1049,8 @@ document.addEventListener("DOMContentLoaded", () => {
         systemStatusEl.textContent = "ONLINE (SERVER)";
         systemStatusEl.className = "chip-value text-success";
       }
-      if (!health.has_openai_key || !health.has_anthropic_key) {
-        if (modeCheckbox) modeCheckbox.checked = true;
-        if (modeLabel) modeLabel.textContent = "Simulation Mode";
+      if (modeLabel && modeCheckbox && !modeCheckbox.checked) {
+        modeLabel.textContent = "Live API Mode";
       }
     } catch (err) {
       console.info("Backend server unreachable. Enabling autonomous client-side simulation mode (Netlify ready).", err);

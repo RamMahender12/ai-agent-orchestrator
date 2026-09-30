@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from agents.base_agent import BaseAgent
 from core.models import AgentProfile, TokenUsage, EvaluationResult
 from core.cost_tracker import CostTracker
+from core.llm import NoApiKey, complete
 
 try:
     import anthropic
@@ -15,9 +16,9 @@ class AgentBClaude(BaseAgent):
     Agent B: Anthropic Claude Agent.
     Specializes in rigorous auditing, critical evaluation, logic validation, and quality scoring.
     """
-    def __init__(self, model: str = "claude-3-5-sonnet-20241022", simulation_mode: bool = True):
+    def __init__(self, model: str = "nvidia/nemotron-3-ultra-550b-a55b:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent B (Claude)",
+            name="Nemotron",
             provider="Anthropic",
             model=model,
             role="Quality Auditor & Critical Evaluator"
@@ -50,25 +51,19 @@ class AgentBClaude(BaseAgent):
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
         """Interactive conversational interface with Agent B (Claude)."""
         history = history or []
-        if not self.simulation_mode and self.client:
-            messages = []
-            for h in history:
-                messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
-            messages.append({"role": "user", "content": message})
+        if not self.simulation_mode:
             try:
-                response = self.client.messages.create(
+                return complete(
+                    "You are Agent B, a critical reviewer. Answer the user's prompt directly. Judge only what they asked.",
+                    message,
+                    history,
+                    prefer="anthropic",
                     model=self.model,
-                    max_tokens=1000,
-                    system="You are Agent B (Anthropic Claude), an elite systems auditor, critical thinker, and quality evaluator.",
-                    messages=messages
                 )
-                content = response.content[0].text if response.content else ""
-                p_tokens = response.usage.input_tokens
-                c_tokens = response.usage.output_tokens
-                usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
-                return content, usage
-            except Exception as e:
-                return f"[Claude Error: {e}]", CostTracker.create_token_usage(self.model, 20, 20)
+            except NoApiKey as exc:
+                return str(exc), CostTracker.create_token_usage(self.model, 0, 0)
+            except Exception as exc:
+                return f"[Model error: {exc}]", CostTracker.create_token_usage(self.model, 0, 0)
         else:
             # Dynamic simulated audit analysis tailored to user query
             msg_lower = message.lower()
@@ -106,10 +101,9 @@ class AgentBClaude(BaseAgent):
         revision = context.get("revision", 1)
         threshold = context.get("threshold", 80)
 
-        if not self.simulation_mode and self.client:
+        if not self.simulation_mode:
             return self._call_real_api(original_task, draft, revision, threshold)
-        else:
-            return self._simulate_evaluation(draft, revision, threshold)
+        return self._simulate_evaluation(draft, revision, threshold)
 
     def _call_real_api(self, task: str, draft: str, revision: int, threshold: int) -> EvaluationResult:
         system_prompt = (
@@ -130,20 +124,13 @@ class AgentBClaude(BaseAgent):
             "Evaluate this draft strictly on completeness, failure recovery, security, and concrete specifications."
         )
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=1000,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
-        )
-
-        raw_text = response.content[0].text if response.content else "{}"
-        p_tokens = response.usage.input_tokens
-        c_tokens = response.usage.output_tokens
-        usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
+        raw_text, usage = complete(system_prompt, user_prompt, prefer="anthropic", model=self.model)
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
 
         try:
-            parsed = json.loads(raw_text)
+            parsed = json.loads(cleaned)
             score = parsed.get("score", 70)
             strengths = parsed.get("strengths", ["Clear overview"])
             flaws = parsed.get("flaws", ["Missing implementation detail"])
