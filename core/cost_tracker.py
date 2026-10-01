@@ -18,15 +18,15 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
         "output_per_million": 30.00
     },
     # Anthropic Models
-    "claude-3-5-sonnet-20241022": {
+    "claude-3-5-sonnet": {
         "input_per_million": 3.00,
         "output_per_million": 15.00
     },
-    "claude-3-haiku-20240307": {
+    "claude-3-haiku": {
         "input_per_million": 0.25,
         "output_per_million": 1.25
     },
-    "claude-3-opus-20240229": {
+    "claude-3-opus": {
         "input_per_million": 15.00,
         "output_per_million": 75.00
     },
@@ -48,11 +48,8 @@ class CostTracker:
     def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
         """Calculate total USD cost given a model and token usage."""
         # Find matching model key
-        pricing = MODEL_PRICING.get("default")
-        for key, price_dict in MODEL_PRICING.items():
-            if key in model.lower() or model.lower() in key:
-                pricing = price_dict
-                break
+        name = model.lower().replace("3.5", "3-5")
+        pricing = MODEL_PRICING[max((k for k in MODEL_PRICING if k in name), key=len, default="default")]
 
         input_cost = (prompt_tokens / 1_000_000.0) * pricing["input_per_million"]
         output_cost = (completion_tokens / 1_000_000.0) * pricing["output_per_million"]

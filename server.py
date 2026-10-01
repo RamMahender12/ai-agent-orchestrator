@@ -128,6 +128,17 @@ async def get_runs():
     """Retrieve recent runs from SQLite."""
     return db.get_run_history(limit=25)
 
+@app.delete("/api/runs")
+async def delete_all_runs():
+    """Clear the run history."""
+    db.delete_runs()
+    return {"deleted": "all"}
+
+@app.delete("/api/runs/{run_id}")
+async def delete_run(run_id: str):
+    db.delete_runs(run_id)
+    return {"deleted": run_id}
+
 @app.get("/api/runs/{run_id}")
 async def get_run(run_id: str):
     """Retrieve detailed execution log, steps, and evaluations for a run."""
@@ -210,6 +221,7 @@ async def execute_orchestration_background(
         # Notify subscribers workflow finished
         dispatch_event("stream_ended", {"run_id": run_id, "final_status": run.status})
     except Exception as exc:
+        db.fail_run(run_id, str(exc))
         dispatch_event("error", {"run_id": run_id, "error": str(exc)})
     finally:
         await asyncio.sleep(1.0)
@@ -287,4 +299,4 @@ app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=True)

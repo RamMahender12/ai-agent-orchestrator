@@ -18,9 +18,9 @@ class AgentCSupervisor:
     """
     Agent C: Meta-Orchestrator & Supervisor Agent.
     - Interrogates Agent A and Agent B to discover capabilities and logs them to Database.
-    - Assigns tasks and continuously tracks execution status.
+    - Has A and B both answer the task and score each other's answer.
     - Calculates real-time tokens and USD costs for Agent A, Agent B, and Agent C.
-    - Analyzes evaluations; if Agent A's output is inadequate, instructs Agent A to revise it.
+    - Continues with the higher-scored answer; if it is below the pass score, instructs its author to revise it.
     - Commits full audit logs and metrics to SQLite and disk.
     """
     def __init__(
@@ -52,25 +52,25 @@ class AgentCSupervisor:
                 "A2A discovery of Agent A and Agent B",
                 "Task dispatch via message/send",
                 "Token and USD cost tracking",
+                "Cross-review: each agent scores the other's answer",
                 "Revision orders when quality is too low",
             ],
-            description="I am Agent C. I ask A and B what they do, task them over A2A, log the work, track tokens and cost, and tell A to revise when B rejects the draft.",
+            description="I am Agent C. I ask A and B what they do, have both answer the task over A2A, have each score the other's answer, log the work, track tokens and cost, and tell the author of the stronger answer to revise it when its score is too low.",
         )
 
     def bind_a2a(self):
         """Publish A, B, and C on the shared A2A router."""
-        self.a2a.bind("a", card_for(self.agent_a, [
+        worker_skills = [
             {"id": "describe", "name": "What I do", "description": "Return capabilities.", "tags": ["discovery"]},
-            {"id": "draft", "name": "Draft", "description": "Produce a first deliverable.", "tags": ["create"]},
+            {"id": "draft", "name": "Draft", "description": "Answer the task.", "tags": ["create"]},
+            {"id": "audit", "name": "Audit", "description": "Score the other agent's answer from 0 to 100.", "tags": ["review"]},
             {"id": "revise", "name": "Revise", "description": "Redo the work from supervisor critique.", "tags": ["revise"]},
-        ]), self._on_a)
-        self.a2a.bind("b", card_for(self.agent_b, [
-            {"id": "describe", "name": "What I do", "description": "Return capabilities.", "tags": ["discovery"]},
-            {"id": "audit", "name": "Audit", "description": "Score a draft from 0 to 100.", "tags": ["review"]},
-        ]), self._on_b)
+        ]
+        self.a2a.bind("a", card_for(self.agent_a, worker_skills), lambda m: self._on_worker(self.agent_a, m))
+        self.a2a.bind("b", card_for(self.agent_b, worker_skills), lambda m: self._on_worker(self.agent_b, m))
         self.a2a.bind("c", card_for(self, [
             {"id": "describe", "name": "What I do", "description": "Discover A and B and report cost.", "tags": ["discovery"]},
-            {"id": "orchestrate", "name": "Orchestrate", "description": "Run A, have B audit, tell A to revise if the score is low.", "tags": ["orchestrate"]},
+            {"id": "orchestrate", "name": "Orchestrate", "description": "Have A and B both answer, score each other, and revise the stronger answer until it passes.", "tags": ["orchestrate"]},
             {"id": "monitor", "name": "Monitor", "description": "List A2A tasks and token cost for A, B, and C.", "tags": ["monitor"]},
         ]), self._on_c)
 
@@ -81,35 +81,22 @@ class AgentCSupervisor:
             CostTracker.estimate_tokens_from_text(completion),
         ).model_dump()
 
-    def _on_a(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    def _on_worker(self, agent, message: Dict[str, Any]) -> Dict[str, Any]:
+        """A2A handler shared by A and B: both can describe, draft, revise, and audit."""
         from core.a2a import message_data, message_text
         text = message_text(message)
         data = message_data(message)
-        skill = (message.get("metadata") or {}).get("skill") or "draft"
+        default = "audit" if data.get("draft") else ("draft" if agent is self.agent_a else "chat")
+        skill = (message.get("metadata") or {}).get("skill") or default
         if skill == "describe" or text.lower().strip(" ?.!") in ("what do you do", "who are you"):
-            profile = self.agent_a.get_profile()
+            profile = agent.get_profile()
             body = f"{profile.description} Capabilities: {', '.join(profile.capabilities)}"
-            return {"text": body, "usage": self._usage(self.agent_a.model, text, body), "model": self.agent_a.model}
+            return {"text": body, "usage": self._usage(agent.model, text, body), "model": agent.model}
         if skill == "instruct":
             body = "Acknowledged. I will revise the draft against that critique."
-            return {"text": body, "usage": self._usage(self.agent_a.model, text, body), "model": self.agent_a.model}
-        out, usage = self.agent_a.execute(data.get("task") or text, {
-            "revision": data.get("revision", 2 if skill == "revise" else 1),
-            "feedback": data.get("feedback"),
-        })
-        return {"text": out, "usage": usage.model_dump(), "model": self.agent_a.model}
-
-    def _on_b(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        from core.a2a import message_data, message_text
-        text = message_text(message)
-        data = message_data(message)
-        skill = (message.get("metadata") or {}).get("skill") or ("audit" if data.get("draft") else "chat")
-        if skill == "describe" or text.lower().strip(" ?.!") in ("what do you do", "who are you"):
-            profile = self.agent_b.get_profile()
-            body = f"{profile.description} Capabilities: {', '.join(profile.capabilities)}"
-            return {"text": body, "usage": self._usage(self.agent_b.model, text, body), "model": self.agent_b.model}
+            return {"text": body, "usage": self._usage(agent.model, text, body), "model": agent.model}
         if skill == "audit":
-            evaluation = self.agent_b.evaluate_draft(data.get("task") or text, {
+            evaluation = agent.evaluate_draft(data.get("task") or text, {
                 "draft": data.get("draft", ""),
                 "revision": data.get("revision", 1),
                 "threshold": data.get("threshold", self.quality_threshold),
@@ -121,11 +108,18 @@ class AgentCSupervisor:
             return {
                 "text": summary,
                 "data": evaluation.model_dump(),
-                "usage": evaluation.token_usage.model_dump() if evaluation.token_usage else self._usage(self.agent_b.model, text, summary),
-                "model": self.agent_b.model,
+                "usage": evaluation.token_usage.model_dump() if evaluation.token_usage else self._usage(agent.model, text, summary),
+                "model": agent.model,
             }
-        reply, usage = self.agent_b.chat(text)
-        return {"text": reply, "usage": usage.model_dump(), "model": self.agent_b.model}
+        if skill == "chat":
+            reply, usage = agent.chat(text)
+            return {"text": reply, "usage": usage.model_dump(), "model": agent.model}
+        out, usage = agent.draft(data.get("task") or text, {
+            "revision": data.get("revision", 2 if skill == "revise" else 1),
+            "feedback": data.get("feedback"),
+            "previous": data.get("previous"),
+        })
+        return {"text": out, "usage": usage.model_dump(), "model": agent.model}
 
     def _on_c(self, message: Dict[str, Any]) -> Dict[str, Any]:
         from core.a2a import message_text
@@ -197,10 +191,11 @@ class AgentCSupervisor:
         """
         Executes the full multi-agent orchestration lifecycle:
         1. Discovery & Capability Registration (stores in DB)
-        2. Task Dispatch to Agent A
-        3. Audit & Scoring by Agent B
-        4. Supervisor Intervention & Feedback loop if score < threshold
-        5. Final persistence and telemetry consolidation
+        2. Agent A and Agent B each answer the task
+        3. Cross-review: B scores A's answer, A scores B's answer
+        4. Supervisor continues with the higher-scored answer
+        5. While that score < threshold, its author revises from the other agent's critique
+        6. Final output is the best-scoring draft; persistence and telemetry consolidation
         """
         self.bind_a2a()
         run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
@@ -224,205 +219,204 @@ class AgentCSupervisor:
                     **data
                 })
 
-        step_counter = 1
+        def log(sender: str, receiver: str, action: str, content: str,
+                usage: Optional[TokenUsage] = None, **metadata) -> StepLog:
+            step = StepLog(
+                step_index=len(run.steps) + 1,
+                sender=sender,
+                receiver=receiver,
+                action=action,
+                content=content,
+                token_usage=usage,
+                metadata=metadata,
+            )
+            self._record_step(run, step)
+            return step
+
+        workers = {"a": self.agent_a, "b": self.agent_b}
+        other = {"a": "b", "b": "a"}
 
         # ==========================================
         # STEP 1: Supervisor queries A and B capabilities
         # ==========================================
         emit("status_change", {"status": "DISCOVERY", "message": "Supervisor interrogating Agent A and Agent B..."})
 
-        # Query Agent A over A2A (agent card + message/send)
-        card_a = self.a2a.card("a")
-        desc_a = self.a2a.send("a", "What do you do?", skill="describe", context_id=run_id)
-        profile_a = self._profile_from_card(card_a, task_text(desc_a))
-        self.db.register_agent(profile_a)
-        run.agent_profiles[profile_a.name] = profile_a
+        for key in workers:
+            # Query the agent over A2A (agent card + message/send)
+            desc = self.a2a.send(key, "What do you do?", skill="describe", context_id=run_id)
+            profile = self._profile_from_card(self.a2a.card(key), task_text(desc))
+            self.db.register_agent(profile)
+            run.agent_profiles[profile.name] = profile
+            step = log(
+                self.name, profile.name, "CAPABILITY_DISCOVERY",
+                f'C asked: "What do you do?"\n{profile.name} answered: {task_text(desc)}\nModel: {profile.model}',
+                TokenUsage(**(desc["metadata"]["usage"])),
+                profile=profile.model_dump(), **self._a2a_meta(desc),
+            )
+            emit("agent_registered", {"agent": profile.model_dump(), "step": step.model_dump()})
 
-        step_a_disc = StepLog(
-            step_index=step_counter,
-            sender=self.name,
-            receiver=profile_a.name,
-            action="CAPABILITY_DISCOVERY",
-            content=f"A2A card for {profile_a.name}. Discovered: {', '.join(profile_a.capabilities)}. Model: {profile_a.model}.",
-            token_usage=TokenUsage(**(desc_a["metadata"]["usage"])),
-            metadata={"profile": profile_a.model_dump(), **self._a2a_meta(desc_a)}
-        )
-        self._record_step(run, step_a_disc)
-        emit("agent_registered", {"agent": profile_a.model_dump(), "step": step_a_disc.model_dump()})
-        step_counter += 1
-
-        # Query Agent B over A2A
-        card_b = self.a2a.card("b")
-        desc_b = self.a2a.send("b", "What do you do?", skill="describe", context_id=run_id)
-        profile_b = self._profile_from_card(card_b, task_text(desc_b))
-        self.db.register_agent(profile_b)
-        run.agent_profiles[profile_b.name] = profile_b
-
-        step_b_disc = StepLog(
-            step_index=step_counter,
-            sender=self.name,
-            receiver=profile_b.name,
-            action="CAPABILITY_DISCOVERY",
-            content=f"A2A card for {profile_b.name}. Discovered: {', '.join(profile_b.capabilities)}. Model: {profile_b.model}.",
-            token_usage=TokenUsage(**(desc_b["metadata"]["usage"])),
-            metadata={"profile": profile_b.model_dump(), **self._a2a_meta(desc_b)}
-        )
-        self._record_step(run, step_b_disc)
-        emit("agent_registered", {"agent": profile_b.model_dump(), "step": step_b_disc.model_dump()})
-        step_counter += 1
-
-        # ==========================================
-        # STEP 2: Iterative Generation & Critique Loop
-        # ==========================================
-        revision = 1
-        current_draft = ""
-        current_feedback = None
-        is_approved = False
-
-        while revision <= self.max_revisions and not is_approved:
-            run.revisions_count = revision
-            run.status = f"REVISION_{revision}_GENERATION"
+        def write(key: str, revision: int, feedback: Optional[str] = None, previous: Optional[str] = None) -> str:
+            """Have one agent answer the task (or revise its answer) over A2A message/send."""
+            agent = workers[key]
+            run.status = f"REVISION_{revision}_GENERATION_{key.upper()}"
+            self.db.update_run(run)
             emit("status_change", {
                 "status": run.status,
-                "message": f"Supervisor dispatching task to Agent A (Revision {revision})..."
+                "message": f"Supervisor dispatching task to {agent.name} (Revision {revision})..."
             })
-
-            # Dispatch to Agent A via A2A message/send. Revision > 1 is the "do it better" order.
-            a_skill = "revise" if current_feedback else "draft"
-            a_task = self.a2a.send("a", task, skill=a_skill, data={
+            if not feedback:  # on later rounds the REVISE_DIRECTIVE step is C's message
+                log(self.name, agent.name, "TASK_DISPATCH", f"Do this task and send me your draft:\n{task}", revision=revision)
+            sent = self.a2a.send(key, task, skill="revise" if feedback else "draft", data={
                 "task": task,
                 "revision": revision,
-                "feedback": current_feedback,
+                "feedback": feedback,
+                "previous": previous,
             }, context_id=run_id)
-            current_draft = task_text(a_task)
-            a_usage = TokenUsage(**a_task["metadata"]["usage"])
-
-            step_a_exec = StepLog(
-                step_index=step_counter,
-                sender=self.agent_a.name,
-                receiver=self.name,
-                action="DRAFT_SUBMISSION" if a_skill == "draft" else "REVISED_DRAFT",
-                content=current_draft,
-                token_usage=a_usage,
-                metadata={"revision": revision, "had_prior_feedback": bool(current_feedback), **self._a2a_meta(a_task)}
+            draft = task_text(sent)
+            usage = TokenUsage(**sent["metadata"]["usage"])
+            step = log(
+                agent.name, self.name, "REVISED_DRAFT" if feedback else "DRAFT_SUBMISSION", draft, usage,
+                revision=revision, **self._a2a_meta(sent),
             )
-            self._record_step(run, step_a_exec)
             emit("draft_produced", {
                 "revision": revision,
-                "agent": self.agent_a.name,
-                "draft": current_draft,
-                "tokens": a_usage.model_dump(),
-                "step": step_a_exec.model_dump()
+                "agent": agent.name,
+                "draft": draft,
+                "tokens": usage.model_dump(),
+                "step": step.model_dump()
             })
-            step_counter += 1
+            return draft
 
-            # Dispatch to Agent B (Claude) for evaluation
-            run.status = f"REVISION_{revision}_AUDIT"
+        def score(author: str, draft: str, revision: int) -> EvaluationResult:
+            """Have the other agent score this author's draft, so nobody grades their own work."""
+            reviewer = workers[other[author]]
+            run.status = f"REVISION_{revision}_AUDIT_{other[author].upper()}"
+            self.db.update_run(run)
             emit("status_change", {
                 "status": run.status,
-                "message": f"Supervisor routing draft to Agent B (Claude) for critical audit..."
+                "message": f"Supervisor routing {workers[author].name}'s draft to {reviewer.name} for critical audit..."
             })
-
-            b_task = self.a2a.send("b", task, skill="audit", data={
+            log(
+                self.name, reviewer.name, "AUDIT_REQUEST",
+                f"Score {workers[author].name}'s attempt {revision} from 0 to 100 against the task. List the problems. Pass score is {self.quality_threshold}.",
+                revision=revision,
+            )
+            sent = self.a2a.send(other[author], task, skill="audit", data={
                 "task": task,
-                "draft": current_draft,
+                "draft": draft,
                 "revision": revision,
                 "threshold": self.quality_threshold,
             }, context_id=run_id)
-            evaluation = EvaluationResult(**b_task["metadata"]["result"])
+            evaluation = EvaluationResult(**sent["metadata"]["result"])
             run.evaluations.append(evaluation)
             self.db.log_evaluation(run.run_id, evaluation)
-
-            step_b_audit = StepLog(
-                step_index=step_counter,
-                sender=self.agent_b.name,
-                receiver=self.name,
-                action="AUDIT_VERDICT",
-                content=(
+            step = log(
+                reviewer.name, self.name, "AUDIT_VERDICT",
+                (
                     f"Quality Score: {evaluation.score}/100. "
                     f"Passed: {evaluation.passed}. "
                     f"Flaws Detected: {len(evaluation.flaws)}. "
                     f"Recommendation: {evaluation.actionable_feedback}"
                 ),
-                token_usage=evaluation.token_usage,
-                metadata={"evaluation": evaluation.model_dump(), **self._a2a_meta(b_task)}
+                evaluation.token_usage,
+                evaluation=evaluation.model_dump(), author=workers[author].name, **self._a2a_meta(sent),
             )
-            self._record_step(run, step_b_audit)
             emit("audit_completed", {
                 "revision": revision,
+                "author": workers[author].name,
                 "evaluation": evaluation.model_dump(),
-                "step": step_b_audit.model_dump()
+                "step": step.model_dump()
             })
-            step_counter += 1
+            return evaluation
 
-            # Supervisor Quality Gate & Decision
-            if evaluation.passed or evaluation.score >= self.quality_threshold:
-                is_approved = True
-                run.status = "COMPLETED"
-                run.final_output = current_draft
-                run.completed_at = datetime.utcnow()
+        # ==========================================
+        # STEP 2: Both agents answer, then score each other's answer
+        # ==========================================
+        # ponytail: A and B are called one after the other; run them in threads if the wait matters
+        revision = 1
+        run.revisions_count = revision
+        drafts = {key: write(key, revision) for key in workers}
+        verdicts = {key: score(key, drafts[key], revision) for key in workers}
 
-                step_approval = StepLog(
-                    step_index=step_counter,
-                    sender=self.name,
-                    receiver="ALL",
-                    action="APPROVAL_FINALIZED",
-                    content=(
-                        f"Deliverable successfully approved at Revision {revision} with Score {evaluation.score}/100. "
-                        f"All quality benchmarks met."
-                    ),
-                    token_usage=CostTracker.create_token_usage(self.model, 60, 40),
-                    metadata={"final_revision": revision, "final_score": evaluation.score}
-                )
-                self._record_step(run, step_approval)
-                emit("workflow_completed", {
-                    "final_score": evaluation.score,
-                    "revisions": revision,
-                    "final_output": current_draft,
-                    "step": step_approval.model_dump()
-                })
-                step_counter += 1
-            else:
-                # Agent A was not doing a good job! Supervisor intervenes
-                emit("status_change", {
-                    "status": "SUPERVISOR_INTERVENTION",
-                    "message": f"Quality score {evaluation.score}/100 failed threshold {self.quality_threshold}. Supervisor instructing Agent A to revise..."
-                })
+        # Supervisor picks the stronger answer (a tie goes to A)
+        lead = max(workers, key=lambda key: verdicts[key].score)
+        author = workers[lead]
+        draft, evaluation = drafts[lead], verdicts[lead]
+        best_draft, best = draft, evaluation
+        step = log(
+            self.name, "ALL", "WINNER_SELECTED",
+            (
+                f"{self.agent_a.name} scored {verdicts['a'].score}/100 and {self.agent_b.name} scored {verdicts['b'].score}/100. "
+                f"Continuing with {author.name}'s answer."
+            ),
+            winner=author.name, scores={workers[key].name: verdicts[key].score for key in workers},
+        )
+        emit("winner_selected", {
+            "winner": author.name,
+            "scores": step.metadata["scores"],
+            "step": step.model_dump()
+        })
 
-                current_feedback = (
-                    f"Supervisor Directive: Revision {revision} fell below quality threshold ({evaluation.score}/{self.quality_threshold}).\n"
-                    f"Critique from Agent B:\n"
-                    f"- Identified Flaws: {'; '.join(evaluation.flaws)}\n"
-                    f"- Actionable Instructions: {evaluation.actionable_feedback}\n"
-                    f"Requirement: Incorporate all missing specifications immediately in your next submission."
-                )
-                order = self.a2a.send("a", current_feedback, skill="instruct", data={
-                    "task": task, "revision": revision,
-                }, context_id=run_id)
+        # ==========================================
+        # STEP 3: Quality gate. The winner revises from the other agent's critique until it passes
+        # ==========================================
+        while evaluation.score < self.quality_threshold and revision < self.max_revisions:
+            emit("status_change", {
+                "status": "SUPERVISOR_INTERVENTION",
+                "message": f"Quality score {evaluation.score}/100 failed threshold {self.quality_threshold}. Supervisor instructing {author.name} to revise..."
+            })
 
-                step_intervention = StepLog(
-                    step_index=step_counter,
-                    sender=self.name,
-                    receiver=self.agent_a.name,
-                    action="REVISE_DIRECTIVE",
-                    content=current_feedback,
-                    token_usage=TokenUsage(**order["metadata"]["usage"]),
-                    metadata={"revision": revision, "score": evaluation.score, **self._a2a_meta(order)}
-                )
-                self._record_step(run, step_intervention)
-                emit("supervisor_intervention", {
-                    "revision": revision,
-                    "critique": current_feedback,
-                    "score": evaluation.score,
-                    "step": step_intervention.model_dump()
-                })
-                step_counter += 1
-                revision += 1
+            feedback = (
+                f"Supervisor Directive: Revision {revision} fell below quality threshold ({evaluation.score}/{self.quality_threshold}).\n"
+                f"Critique from {workers[other[lead]].name}:\n"
+                f"- Identified Flaws: {'; '.join(evaluation.flaws)}\n"
+                f"- Actionable Instructions: {evaluation.actionable_feedback}\n"
+                f"Requirement: Incorporate all missing specifications immediately in your next submission."
+            )
+            order = self.a2a.send(lead, feedback, skill="instruct", data={
+                "task": task, "revision": revision,
+            }, context_id=run_id)
+            step = log(
+                self.name, author.name, "REVISE_DIRECTIVE", feedback, TokenUsage(**order["metadata"]["usage"]),
+                revision=revision, score=evaluation.score, **self._a2a_meta(order),
+            )
+            emit("supervisor_intervention", {
+                "revision": revision,
+                "agent": author.name,
+                "critique": feedback,
+                "score": evaluation.score,
+                "step": step.model_dump()
+            })
 
-        if not is_approved:
+            revision += 1
+            run.revisions_count = revision
+            draft = write(lead, revision, feedback, previous=draft)
+            evaluation = score(lead, draft, revision)
+            if evaluation.score > best.score:  # a revision can score lower; keep the best one
+                best_draft, best = draft, evaluation
+
+        run.final_output = best_draft
+        run.completed_at = datetime.utcnow()
+        if best.score >= self.quality_threshold:
+            run.status = "COMPLETED"
+            step = log(
+                self.name, "ALL", "APPROVAL_FINALIZED",
+                (
+                    f"{author.name}'s deliverable successfully approved at Revision {best.revision} with Score {best.score}/100. "
+                    f"All quality benchmarks met."
+                ),
+                CostTracker.create_token_usage(self.model, 60, 40),
+                final_revision=best.revision, final_score=best.score, author=author.name,
+            )
+            emit("workflow_completed", {
+                "final_score": best.score,
+                "revisions": revision,
+                "author": author.name,
+                "final_output": best_draft,
+                "step": step.model_dump()
+            })
+        else:
             run.status = "MAX_REVISIONS_REACHED"
-            run.final_output = current_draft
-            run.completed_at = datetime.utcnow()
 
         self.db.update_run(run)
         return run
@@ -445,9 +439,9 @@ class AgentCSupervisor:
                 f"Hello! I am Agent C, the Supervisory Meta-Agent. "
                 f"I actively manage: {agents_summary}.\n\n"
                 f"Regarding: '{message}'\n"
-                f"• I can direct Agent A (OpenAI) to draft implementations, specs, or proposals.\n"
-                f"• I route all drafts to Agent B (Claude) for critical scrutiny and quantitative scoring.\n"
-                f"• If Agent A's score is below threshold, I intervene and command revisions until it passes!\n\n"
+                f"• I have Agent A (OpenAI) and Agent B (Claude) each answer the task.\n"
+                f"• Each agent scores the other's answer from 0 to 100, and I continue with the stronger one.\n"
+                f"• If that score is below threshold, I intervene and command revisions until it passes!\n\n"
                 f"To launch a full self-correcting cycle, send your goal via the Live Orchestration tab or ask me to coordinate both agents."
             )
             usage = CostTracker.create_token_usage(self.model, 45, 120)
@@ -466,7 +460,7 @@ class AgentCSupervisor:
                 reply = (
                     f"Hello! I am Agent C, your Supervisory Meta-Orchestrator.\n\n"
                     f"Regarding your query: \"{message}\"\n\n"
-                    f"• I am actively ready to dispatch tasks to **Agent A (Creator)** and **Agent B (Auditor)**.\n"
+                    f"• I am actively ready to dispatch tasks to **Agent A (ChatGPT)** and **Agent B (Claude)**.\n"
                     f"• You can test each agent individually or select **Triad Council** to see them collaborate.\n"
                     f"*(Upstream notice: {exc})*"
                 )

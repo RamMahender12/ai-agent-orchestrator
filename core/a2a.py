@@ -103,6 +103,8 @@ class A2ARouter:
         result = self.rpc(key, body)
         if "error" in result:
             raise RuntimeError(result["error"]["message"])
+        if result["result"]["status"]["state"] == "failed":
+            raise RuntimeError(f"Agent {key.upper()} failed: {task_text(result['result'])}")
         return result["result"]
 
     def rpc(self, key: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -266,6 +268,9 @@ def demo():
     run = supervisor.run_workflow("Build a rate limiter")
     assert run.status == "COMPLETED", run.status
     assert run.revisions_count == 2
+    # B scores A's answer, A scores B's answer, B wins, A re-scores B's revision
+    assert [e.score for e in run.evaluations] == [68, 74, 94], run.evaluations
+    assert "Agent B" in run.final_output and "Revision 2" in run.final_output
     assert run.total_cost_usd > 0
     assert any(step.metadata.get("a2a") for step in run.steps)
     print("a2a demo ok", run.total_tokens, run.total_cost_usd)

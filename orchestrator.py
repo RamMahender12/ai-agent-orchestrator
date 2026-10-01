@@ -110,25 +110,28 @@ def main():
         elif event_type == "draft_produced":
             rev = data["revision"]
             tokens = data["tokens"]
-            console.print(f"\n[bold blue]=== Agent A (OpenAI) Draft - Revision {rev} ===[/bold blue]")
+            console.print(f"\n[bold blue]=== {data['agent']} Draft - Revision {rev} ===[/bold blue]")
             console.print(f"[dim]Tokens: {tokens['total_tokens']} | Step Cost: ${tokens['cost_usd']:.6f}[/dim]")
             preview = data["draft"][:380] + ("..." if len(data["draft"]) > 380 else "")
             console.print(Markdown(preview))
         elif event_type == "audit_completed":
             ev = data["evaluation"]
             color = "green" if ev["passed"] else "red"
-            console.print(f"\n[bold {color}]=== Agent B (Claude) Audit Result ===[/bold {color}]")
+            console.print(f"\n[bold {color}]=== {ev['reviewer']} Audit of {data['author']} ===[/bold {color}]")
             console.print(f"Score: [{color} bold]{ev['score']}/100[/{color} bold] | Verdict: [{color}]{'PASSED' if ev['passed'] else 'REVISION REQUIRED'}[/{color}]")
             if ev["flaws"]:
                 console.print(f"[bold red]Flaws Identified:[/bold red]")
                 for flaw in ev["flaws"]:
                     console.print(f"  [-] {flaw}")
             console.print(f"[bold yellow]Feedback Sent to Supervisor:[/bold yellow] {ev['actionable_feedback']}")
+        elif event_type == "winner_selected":
+            scores = ", ".join(f"{name} {score}/100" for name, score in data["scores"].items())
+            console.print(f"\n[bold cyan]>> Supervisor continues with {data['winner']}'s answer[/bold cyan] ({scores})")
         elif event_type == "supervisor_intervention":
             console.print(Panel(
                 f"[bold red]Supervisor Intervention Triggered:[/bold red]\n"
-                f"Agent A's work did not meet threshold ({data['score']}/{args.threshold}).\n"
-                f"[bold cyan]Action:[/bold cyan] Supervisor commanding Agent A to execute Revision {data['revision'] + 1} addressing all feedback.",
+                f"{data['agent']}'s work did not meet threshold ({data['score']}/{args.threshold}).\n"
+                f"[bold cyan]Action:[/bold cyan] Supervisor commanding {data['agent']} to execute Revision {data['revision'] + 1} addressing all feedback.",
                 title="Agent C (Supervisor)",
                 border_style="red"
             ))

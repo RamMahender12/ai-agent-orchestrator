@@ -222,6 +222,14 @@ class Database:
                 for r in rows
             ]
 
+    def delete_runs(self, run_id: Optional[str] = None):
+        """Delete one run, or every run when no id is given, with its steps and evaluations."""
+        where, args = ("WHERE run_id = ?", (run_id,)) if run_id else ("", ())
+        with self.get_connection() as conn:
+            for table in ("steps", "evaluations", "runs"):
+                conn.execute(f"DELETE FROM {table} {where}", args)
+            conn.commit()
+
     def get_run_history(self, limit: int = 15) -> List[Dict[str, Any]]:
         """Retrieve recent runs."""
         with self.get_connection() as conn:
@@ -245,8 +253,26 @@ class Database:
             cursor.execute("SELECT * FROM evaluations WHERE run_id = ? ORDER BY revision ASC", (run_id,))
             eval_rows = cursor.fetchall()
 
+            cursor.execute("""
+            SELECT sender AS agent, COUNT(*) AS steps, SUM(tokens_prompt) AS prompt_tokens,
+                   SUM(tokens_completion) AS completion_tokens, SUM(tokens_total) AS total_tokens,
+                   ROUND(SUM(cost_usd), 6) AS cost_usd
+            FROM steps WHERE run_id = ? GROUP BY sender
+            """, (run_id,))
+            usage_rows = cursor.fetchall()
+
             return {
                 "run": dict(run_row),
                 "steps": [dict(s) for s in step_rows],
-                "evaluations": [dict(e) for e in eval_rows]
+                "evaluations": [dict(e) for e in eval_rows],
+                "usage": [dict(u) for u in usage_rows]
             }
+
+    def fail_run(self, run_id: str, error: str):
+        """Mark a run FAILED so it never sits in a half-finished status."""
+        with self.get_connection() as conn:
+            conn.execute(
+                "UPDATE runs SET status = 'FAILED', final_output = ?, completed_at = CURRENT_TIMESTAMP WHERE run_id = ?",
+                (f"Error: {error}", run_id),
+            )
+            conn.commit()

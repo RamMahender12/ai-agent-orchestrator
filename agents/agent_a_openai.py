@@ -13,12 +13,13 @@ except ImportError:
 class AgentAOpenAI(BaseAgent):
     """
     Agent A: OpenAI Agent (ChatGPT / GPT-4o).
-    Acts as the Primary Creator / Worker that generates content, proposals, or code.
-    Can receive feedback and generate revised versions.
+    Answers the task, revises from feedback, and scores Agent B's answer.
     """
+    sim_first_score = 74  # differs from B's 68 so the simulated round 1 has a clear winner
+
     def __init__(self, model: str = "poolside/laguna-s-2.1:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent A (Creator)",
+            name="Agent A (ChatGPT)",
             provider="OpenAI",
             model=model,
             role="Primary Generator & Technical Creator"
@@ -42,9 +43,10 @@ class AgentAOpenAI(BaseAgent):
                 "Generative Text & Content Drafting",
                 "Code Architecture & Implementation",
                 "Technical Proposal Generation",
-                "Iterative Refinement from Feedback Loops"
+                "Iterative Refinement from Feedback Loops",
+                "Quantitative Quality Scoring (0-100) of Agent B's answer"
             ],
-            description="I am an OpenAI-powered generator. I specialize in drafting solutions, coding architectures, and producing comprehensive proposals. When provided with critiques, I iteratively refine my work."
+            description="I am an OpenAI-powered generator. I specialize in drafting solutions, coding architectures, and producing comprehensive proposals. When provided with critiques, I iteratively refine my work. I also score Agent B's answer to the same task."
         )
 
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
@@ -135,103 +137,4 @@ class AgentAOpenAI(BaseAgent):
             return reply, CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
 
     def execute(self, task: str, context: Optional[Dict[str, Any]] = None) -> Tuple[str, TokenUsage]:
-        context = context or {}
-        revision = context.get("revision", 1)
-        feedback = context.get("feedback", None)
-
-        if not self.simulation_mode:
-            return self._call_real_api(task, revision, feedback)
-        return self._simulate_response(task, revision, feedback)
-
-    def _call_real_api(self, task: str, revision: int, feedback: Optional[str]) -> Tuple[str, TokenUsage]:
-        system_prompt = (
-
-            "You are Agent A, an expert OpenAI-powered AI engineer and problem solver. "
-            "Deliver structured, rigorous, high-quality deliverables in markdown."
-        )
-        user_prompt = f"TASK:\n{task}\n"
-        if feedback:
-            user_prompt += (
-                f"\nSUPERVISOR CRITIQUE FROM REVISION {revision - 1}:\n"
-                f"{feedback}\n"
-                "Please address every criticism and generate an enhanced revision."
-            )
-
-        return complete(system_prompt, user_prompt, prefer="openai", model=self.model)
-
-    def _simulate_response(self, task: str, revision: int, feedback: Optional[str]) -> Tuple[str, TokenUsage]:
-        """Realistic simulated generation reflecting iterative improvement."""
-        if revision == 1:
-            content = f"""### Executive Solution Draft: {task.splitlines()[0][:60]}
-**Author:** Agent A (OpenAI {self.model})  
-**Status:** Initial Draft (Revision 1)
-
-#### 1. Strategic Overview
-We propose implementing a modular, distributed architecture tailored to address:
-> *"{task}"*
-
-#### 2. Key Pillars
-- **Microservices Boundary:** Decoupled business domains utilizing asynchronous messaging queues.
-- **Data Persistence:** Relational master store paired with an in-memory cache for ultra-fast query resolution.
-- **Security & Authorization:** OAuth 2.0 / OIDC tokens for zero-trust perimeter verification.
-
-#### 3. High-Level Workflow
-1. Client requests routed through an API Gateway with TLS termination.
-2. Ingress controller performs schema validation.
-3. Handled by core downstream service workers.
-
-*(Note: Pending detailed SLA thresholds, error retry backoff specifications, and audit logging metrics).*
-"""
-            p_tokens = 320 + CostTracker.estimate_tokens_from_text(task)
-            c_tokens = CostTracker.estimate_tokens_from_text(content)
-        else:
-            content = f"""### Enhanced Production-Ready Blueprint: {task.splitlines()[0][:60]}
-**Author:** Agent A (OpenAI {self.model})  
-**Status:** Approved Specification (Revision {revision})  
-**Changelog:** Directly incorporated Supervisor feedback & Agent B critique.
-
-#### 1. Executive Summary & Objective Alignment
-This revised architecture explicitly resolves previous gaps identified by Supervisor Agent C and Claude Auditor Agent B, establishing an enterprise-grade solution for:
-> *"{task}"*
-
-#### 2. Concrete Architectural Specifications
-- **Reliability & Retry Mechanism:** Implemented Exponential Backoff with Jitter (Base: 200ms, Max: 5s, Factor: 2x) across all downstream RPCs.
-- **Failover & Circuit Breakers:** Integrated Netflix Hystrix pattern with a 50% error threshold over 10-second rolling windows before tripping.
-- **Observability & Audit Trail:** Distributed tracing via OpenTelemetry with trace-id propagation across Kafka message headers and structured JSON logs.
-- **Security & Zero-Trust:** Mutual TLS (mTLS) with automated certificate rotation every 30 days and granular RBAC role-claims.
-- **Performance Benchmarks & SLAs:**
-  - P95 Latency: < 45ms
-  - P99 Latency: < 120ms
-  - Availability Target: 99.99% uptime with multi-region active-passive replication.
-
-#### 3. Implementation Code / Pseudocode
-```python
-# Resilient Service Client with Exponential Backoff and Telemetry
-import time
-import random
-
-class ResilientServiceClient:
-    def __init__(self, service_url: str, max_retries: int = 3):
-        self.service_url = service_url
-        self.max_retries = max_retries
-
-    async def execute_request(self, payload: dict) -> dict:
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                # Simulated dispatch with telemetry
-                return {{"status": "success", "attempt": attempt, "service": self.service_url}}
-            except Exception as exc:
-                if attempt == self.max_retries:
-                    raise RuntimeError("Circuit breached after max attempts: " + str(exc))
-                backoff = (2 ** attempt * 0.1) + random.uniform(0.01, 0.05)
-                time.sleep(backoff)
-```
-
-#### 4. Conclusion
-All criteria from the audit have been satisfied with quantitative SLAs and executable error recovery procedures.
-"""
-            p_tokens = 580 + (CostTracker.estimate_tokens_from_text(feedback) if feedback else 0)
-            c_tokens = CostTracker.estimate_tokens_from_text(content)
-
-        usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
-        return content, usage
+        return self.draft(task, context)

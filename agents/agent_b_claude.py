@@ -1,8 +1,7 @@
 import os
-import json
 from typing import Dict, Any, Optional, Tuple, List
 from agents.base_agent import BaseAgent
-from core.models import AgentProfile, TokenUsage, EvaluationResult
+from core.models import AgentProfile, TokenUsage
 from core.cost_tracker import CostTracker
 from core.llm import NoApiKey, complete
 
@@ -14,11 +13,13 @@ except ImportError:
 class AgentBClaude(BaseAgent):
     """
     Agent B: Anthropic Claude Agent.
-    Specializes in rigorous auditing, critical evaluation, logic validation, and quality scoring.
+    Answers the task, revises from feedback, and scores Agent A's answer.
     """
+    prefer = "anthropic"
+
     def __init__(self, model: str = "nvidia/nemotron-3-ultra-550b-a55b:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent B (Auditor)",
+            name="Agent B (Claude)",
             provider="Anthropic",
             model=model,
             role="Quality Auditor & Critical Evaluator"
@@ -43,9 +44,10 @@ class AgentBClaude(BaseAgent):
                 "Edge Case & Failure Scenario Discovery",
                 "Quantitative Quality Scoring (0-100)",
                 "Security & Production Readiness Review",
-                "Actionable Defect Formulation"
+                "Actionable Defect Formulation",
+                "Independent Answer Drafting & Revision"
             ],
-            description="I am an Anthropic Claude agent specializing in critical review and evaluation. I examine deliverables for gaps, edge cases, and architectural weaknesses, then generate rigorous quantitative scores and actionable improvement recommendations."
+            description="I am an Anthropic Claude agent specializing in critical review and evaluation. I write my own answer to the task, examine Agent A's answer for gaps, edge cases, and architectural weaknesses, then generate rigorous quantitative scores and actionable improvement recommendations."
         )
 
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
@@ -96,109 +98,3 @@ class AgentBClaude(BaseAgent):
         )
         return summary, eval_res.token_usage
 
-    def evaluate_draft(self, original_task: str, context: Dict[str, Any]) -> EvaluationResult:
-        draft = context.get("draft", "")
-        revision = context.get("revision", 1)
-        threshold = context.get("threshold", 80)
-
-        if not self.simulation_mode:
-            return self._call_real_api(original_task, draft, revision, threshold)
-        return self._simulate_evaluation(draft, revision, threshold)
-
-    def _call_real_api(self, task: str, draft: str, revision: int, threshold: int) -> EvaluationResult:
-        system_prompt = (
-            "You are Agent B (Claude), an elite systems auditor and quality judge. "
-            "You review drafts created by Agent A. "
-            "Respond ONLY with valid JSON in this schema:\n"
-            "{\n"
-            '  "score": int (0-100),\n'
-            '  "strengths": [string],\n'
-            '  "flaws": [string],\n'
-            '  "feedback": string\n'
-            "}"
-        )
-
-        user_prompt = (
-            f"ORIGINAL TASK:\n{task}\n\n"
-            f"AGENT A DRAFT (Revision {revision}):\n{draft}\n\n"
-            "Evaluate this draft strictly on completeness, failure recovery, security, and concrete specifications."
-        )
-
-        raw_text, usage = complete(system_prompt, user_prompt, prefer="anthropic", model=self.model)
-        cleaned = raw_text.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
-
-        try:
-            parsed = json.loads(cleaned)
-            score = parsed.get("score", 70)
-            strengths = parsed.get("strengths", ["Clear overview"])
-            flaws = parsed.get("flaws", ["Missing implementation detail"])
-            feedback = parsed.get("feedback", "Provide more depth.")
-        except Exception:
-            score = 75 if revision == 1 else 92
-            strengths = ["Structured presentation", "Addressed primary topic"]
-            flaws = ["Lacked executable code or quantitative SLAs"]
-            feedback = "Include concrete implementation code and explicit retry policies."
-
-        passed = score >= threshold
-        return EvaluationResult(
-            revision=revision,
-            reviewer=self.name,
-            score=score,
-            passed=passed,
-            strengths=strengths,
-            flaws=flaws,
-            actionable_feedback=feedback,
-            token_usage=usage
-        )
-
-    def _simulate_evaluation(self, draft: str, revision: int, threshold: int) -> EvaluationResult:
-        """Realistic simulated critique ensuring round 1 requires improvement."""
-        p_tokens = 450 + CostTracker.estimate_tokens_from_text(draft)
-        
-        if revision == 1:
-            score = 68
-            passed = False
-            strengths = [
-                "Clean structural breakdown and executive framing",
-                "Correct identification of core microservice boundaries",
-                "Standard authorization model proposed"
-            ]
-            flaws = [
-                "Missing concrete fault tolerance (no exponential backoff or circuit breaker specified)",
-                "No quantitative performance SLAs or latency targets (P95/P99)",
-                "Absence of executable code or pseudocode implementation",
-                "Telemetry and audit logging details were omitted"
-            ]
-            feedback = (
-                "The draft is high-level but lacks production engineering depth. "
-                "You must specify: 1) Concrete retry logic with exponential backoff & jitter, "
-                "2) Circuit breaker parameters, 3) Quantitative SLAs (P95 < 50ms), and "
-                "4) An executable Python pseudocode snippet demonstrating resilient dispatch."
-            )
-            c_tokens = 195
-        else:
-            score = 94
-            passed = True
-            strengths = [
-                "Directly addressed all prior audit objections with precision",
-                "Includes executable ResilientServiceClient with exponential backoff & jitter",
-                "Defines quantitative P95 and P99 SLAs with 99.99% uptime target",
-                "Comprehensive distributed tracing with OpenTelemetry and mTLS specification"
-            ]
-            flaws = []
-            feedback = "The deliverable now meets production enterprise standards. Ready for sign-off."
-            c_tokens = 160
-
-        usage = CostTracker.create_token_usage(self.model, p_tokens, c_tokens)
-        return EvaluationResult(
-            revision=revision,
-            reviewer=self.name,
-            score=score,
-            passed=passed,
-            strengths=strengths,
-            flaws=flaws,
-            actionable_feedback=feedback,
-            token_usage=usage
-        )
