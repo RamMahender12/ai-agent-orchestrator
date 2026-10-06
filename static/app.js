@@ -4,28 +4,32 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(
 const money = (n) => "$" + +(n || 0).toFixed(6);
 const num = (n) => (n || 0).toLocaleString();
 const when = (ts) => (ts ? new Date(ts.replace(" ", "T") + "Z").toLocaleString() : "");
-const keyOf = (name) => (/Agent ([ABC])/.exec(name || "") || [, "c"])[1].toLowerCase();
+const keyOf = (name) => (/Agent ([A-Z])/.exec(name || "") || [, "c"])[1].toLowerCase();
 
 const DONE = new Set(["COMPLETED", "MAX_REVISIONS_REACHED", "FAILED"]);
 const STATUS_LABEL = { COMPLETED: "Approved", MAX_REVISIONS_REACHED: "Not approved", FAILED: "Failed" };
 const ROLES = { a: "ChatGPT", b: "Claude", c: "Supervisor" };
 const C_DESCRIPTION =
-  "Asks A and B what they do, has both answer the task and score each other's answer, logs every step, " +
-  "adds up tokens and cost, and orders the author of the stronger answer to revise when its score is below the pass score.";
-const who = (name) => ROLES[keyOf(name)];
+  "Asks every agent what it does, has them all answer the task at once, scores each answer and gives that agent " +
+  "recommendations, logs every step, adds up tokens and cost, and has every agent below the pass score revise.";
+// A and B have friendly names; the free-model agents use the label in their name, e.g. "Agent D (Apodex)"
+const who = (name) => ROLES[keyOf(name)] || (/\(([^)]*)\)/.exec(name || "") || [, keyOf(name).toUpperCase()])[1];
+const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : k.toUpperCase());
 const rival = (name) => ROLES[keyOf(name) === "a" ? "b" : "a"];
 const STEP_TITLE = {
   CAPABILITY_DISCOVERY: (s) => `C asked ${who(s.receiver)} what it does`,
   DRAFT_SUBMISSION: (s) => `${who(s.sender)} wrote its answer`,
   REVISED_DRAFT: (s) => `${who(s.sender)} wrote a revised answer`,
   AUDIT_VERDICT: (s) => `${who(s.sender)} scored ${rival(s.sender)}'s answer`,
-  WINNER_SELECTED: () => "C picked the stronger answer",
+  SUPERVISOR_RECOMMENDATIONS: (s) => `C scored ${who(s.receiver)}'s answer and gave recommendations`,
+  WINNER_SELECTED: () => "C picked the strongest answer",
+  AGENT_FAILED: (s) => `${who(s.sender)} failed`,
   REVISE_DIRECTIVE: (s) => `C told ${who(s.receiver)} to do it better`,
   APPROVAL_FINALIZED: () => "C approved the result",
   TASK_DISPATCH: (s) => `C gave ${who(s.receiver)} the task`,
   AUDIT_REQUEST: (s) => `C asked ${who(s.receiver)} to score ${rival(s.receiver)}'s answer`,
 };
-const REPLIES = new Set(["DRAFT_SUBMISSION", "REVISED_DRAFT", "AUDIT_VERDICT"]);
+const REPLIES = new Set(["DRAFT_SUBMISSION", "REVISED_DRAFT", "AUDIT_VERDICT", "AGENT_FAILED"]);
 const date = (ts) => new Date(ts.replace(" ", "T") + "Z");
 const spinner = '<span class="spinner" aria-hidden="true"></span>';
 
@@ -43,7 +47,10 @@ setInterval(() => {
 function liveText(run) {
   const attempt = run.revisions_count;
   const k = workingAgent(run.status);
+  if (k === "all") return attempt > 1 ? `Agents below the pass score are rewriting their answers (attempt ${attempt})` : "Every agent is writing its answer";
+  if (run.status.endsWith("REVIEW_ALL")) return `Supervisor is reviewing every answer (attempt ${attempt})`;
   if (run.status.includes("GENERATION")) return attempt > 1 ? `${ROLES[k]} is rewriting its answer (attempt ${attempt})` : `${ROLES[k]} is writing its answer`;
+  if (run.status.includes("REVIEW")) return `Supervisor is reviewing ${ROLES[run.status.slice(-1).toLowerCase()]}'s attempt ${attempt}`;
   if (run.status.includes("AUDIT")) return `${ROLES[k]} is scoring ${ROLES[k === "a" ? "b" : "a"]}'s attempt ${attempt}`;
   return "Supervisor C is asking ChatGPT and Claude what they do";
 }
@@ -57,25 +64,30 @@ async function api(path, options) {
 
 function workingAgent(status) {
   if (DONE.has(status)) return null;
-  // statuses end with the working agent, e.g. REVISION_1_GENERATION_B; runs logged before that had A write and B score
-  const m = /_(GENERATION|AUDIT)(?:_([AB]))?$/.exec(status);
-  return m ? (m[2] || (m[1] === "AUDIT" ? "b" : "a")).toLowerCase() : "c";
+  // statuses end with who is working: _GENERATION_ALL (every agent at once), _REVIEW_* (C);
+  // older runs logged one agent, e.g. REVISION_1_GENERATION_B, or nothing (A wrote and B scored)
+  const m = /_(GENERATION|AUDIT|REVIEW)(?:_([A-Z]+))?$/.exec(status);
+  if (!m || m[1] === "REVIEW") return "c";
+  if (m[2] === "ALL") return "all";
+  return (m[2] || (m[1] === "AUDIT" ? "b" : "a")).toLowerCase();
 }
 
 function renderAgents(run, usage = []) {
   const working = run ? workingAgent(run.status) : null;
-  $("agents").innerHTML = ["a", "b", "c"].map((k) => {
+  const keys = [...new Set(["a", "b", ...Object.keys(agents).sort()]), "c"];
+  $("agents").innerHTML = keys.map((k) => {
+    const busy = working === k || (working === "all" && k !== "c");
     const info = agents[k];
     const used = usage.find((u) => keyOf(u.agent) === k) || {};
     const about = k === "c" ? C_DESCRIPTION
       : info ? esc(info.description)
       : "Not asked yet. Run a task and C will ask this agent what it does.";
     return `
-      <article class="card agent agent-${k} ${working === k ? "working" : ""}">
+      <article class="card agent agent-${k} ${busy ? "working" : ""}">
         <header>
           <span class="badge badge-${k}">${k.toUpperCase()}</span>
-          <h3>${ROLES[k]}</h3>
-          <span class="state">${working === k ? `${spinner} Working <span class="tick">0s</span>` : "Idle"}</span>
+          <h3>${esc(label(k))}</h3>
+          <span class="state">${busy ? `${spinner} Working <span class="tick">0s</span>` : "Idle"}</span>
         </header>
         <p class="about">${about}</p>
         <dl>
@@ -87,9 +99,9 @@ function renderAgents(run, usage = []) {
   }).join("");
 }
 
-// C's own messages name the agents "Agent A (...)" / "Agent B (...)"; show them as ChatGPT / Claude.
+// C's own messages name the agents "Agent A (...)", "Agent D (Apodex)"; show them as ChatGPT, Apodex.
 // Drafts are left untouched, they are the model's own words.
-const friendly = (text) => text.replace(/Agent A(?: \([^)]*\))?/g, "ChatGPT").replace(/Agent B(?: \([^)]*\))?/g, "Claude");
+const friendly = (text) => text.replace(/Agent ([ABD-Z])(?: \(([^)]*)\))?/g, (m, k, n) => ROLES[k.toLowerCase()] || n || m);
 
 function stepBody(step) {
   const content = keyOf(step.sender) === "c" ? friendly(step.content) : step.content;
@@ -100,7 +112,7 @@ function stepBody(step) {
       items?.length ? `<p class="small"><strong>${title}</strong></p><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "";
     return `
       <p><span class="score ${ev.passed ? "pass" : "fail"}">${ev.score}/100</span> ${ev.passed ? "Passed" : "Below the pass score"}</p>
-      ${list("Problems", ev.flaws)}${list("Strengths", ev.strengths)}
+      ${list(keyOf(ev.reviewer) === "c" ? "Recommendations" : "Problems", ev.flaws)}${list("Strengths", ev.strengths)}
       <p class="small"><strong>Feedback</strong> ${esc(ev.actionable_feedback)}</p>`;
   }
   if (step.content.length > 800) {
@@ -170,8 +182,32 @@ async function loadRuns() {
       <span class="muted small">${STATUS_LABEL[r.status] || "Unfinished"} · ${num(r.total_tokens)} tokens · ${money(r.total_cost_usd)} · ${when(r.created_at)}</span>
     </button><button type="button" class="danger" data-delete="${esc(r.run_id)}" data-task="${esc(r.task)}" aria-label="Delete this run" title="Delete this run">${TRASH}</button></li>`).join("") : `<li class="muted">No runs yet.</li>`;
   $("clear-runs").hidden = !runs.length;
+  loadMetrics().catch(() => {});
   return runs;
 }
+
+async function loadMetrics() {
+  const rows = await api(`/api/metrics?period=${$("period").value}`);
+  if (!rows.length) return ($("metrics").innerHTML = `<p class="muted">No scored answers yet. Finish a run to see metrics.</p>`);
+  const pct = (n) => (n == null ? "–" : `${n}%`);
+  // the leader of a period has the higher average score, then more wins
+  const lead = {};
+  rows.forEach((r) => {
+    const cur = lead[r.period];
+    if (r.avg_score != null && (!cur || r.avg_score > cur.avg_score || (r.avg_score === cur.avg_score && r.wins > cur.wins))) lead[r.period] = r;
+  });
+  $("metrics").innerHTML = `<table>
+    <thead><tr><th>Period</th><th>Agent</th><th>Avg score</th><th>Best</th><th>Pass rate</th><th>First-try pass</th>
+      <th>Wins</th><th>Answers</th><th>Tokens</th><th>Cost</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr class="${lead[r.period] === r ? "leader" : ""}">
+      <td>${esc(r.period)}</td>
+      <td><span class="badge badge-${keyOf(r.agent)}"></span> ${who(r.agent)}${lead[r.period] === r ? " <strong>★ leader</strong>" : ""}</td>
+      <td>${r.avg_score ?? "–"}</td><td>${r.best_score ?? "–"}</td><td>${pct(r.pass_rate)}</td><td>${pct(r.first_try_pass_rate)}</td>
+      <td>${r.wins}</td><td>${r.answers_reviewed}</td><td>${num(r.tokens)}</td><td>${money(r.cost_usd)}</td>
+    </tr>`).join("")}</tbody></table>`;
+}
+
+$("period").addEventListener("change", () => loadMetrics().catch(() => {}));
 
 async function showRun(runId) {
   shownId = runId;
@@ -202,7 +238,7 @@ async function showRun(runId) {
 async function loadAgents() {
   agents = {};
   // newest first; skip rows left over from older agent names
-  for (const a of await api("/api/agents")) if (/Agent [AB]/.test(a.name)) agents[keyOf(a.name)] ??= a;
+  for (const a of await api("/api/agents")) if (/Agent [ABD-Z]/.test(a.name)) agents[keyOf(a.name)] ??= a;
 }
 
 const TRASH = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>`;

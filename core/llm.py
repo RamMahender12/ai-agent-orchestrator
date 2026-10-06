@@ -46,13 +46,13 @@ def _messages(system: str, user: str, history: List[Dict[str, str]]) -> List[Dic
     return messages
 
 
-def _chat(api_key: str, base_url: Optional[str], model: str, messages: List[Dict[str, str]]) -> Tuple[str, TokenUsage]:
+def _chat(api_key: str, base_url: Optional[str], model: str, messages: List[Dict[str, str]], fallback: bool = True) -> Tuple[str, TokenUsage]:
     from openai import OpenAI
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
     
     # Model candidates in priority order
     candidates = [model]
-    if base_url and "openrouter.ai" in base_url:
+    if fallback and base_url and "openrouter.ai" in base_url:
         for alt in [
             "nvidia/nemotron-3-ultra-550b-a55b:free",
             "poolside/laguna-s-2.1:free",
@@ -108,12 +108,14 @@ def complete(
     history: Optional[List[Dict[str, str]]] = None,
     prefer: str = "openai",
     model: Optional[str] = None,
+    fallback: bool = True,
 ) -> Tuple[str, TokenUsage]:
+    """fallback=False: if this model fails, raise instead of quietly answering with another free model."""
     history = history or []
     messages = _messages(system, user, history)
     rkey = _key("OPENROUTER_API_KEY")
     if rkey:
-        return _chat(rkey, os.getenv("OPENROUTER_BASE_URL", ROUTER_URL), _pick_model(prefer, model), messages)
+        return _chat(rkey, os.getenv("OPENROUTER_BASE_URL", ROUTER_URL), _pick_model(prefer, model), messages, fallback)
 
     zkey = _key("OPENCODE_API_KEY")
     if zkey:

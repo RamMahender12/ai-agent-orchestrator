@@ -49,6 +49,8 @@ class CostTracker:
         """Calculate total USD cost given a model and token usage."""
         # Find matching model key
         name = model.lower().replace("3.5", "3-5")
+        if name.endswith(":free"):  # OpenRouter free tier
+            return 0.0
         pricing = MODEL_PRICING[max((k for k in MODEL_PRICING if k in name), key=len, default="default")]
 
         input_cost = (prompt_tokens / 1_000_000.0) * pricing["input_per_million"]

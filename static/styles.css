@@ -8,6 +8,9 @@
   --a: #2563eb;
   --b: #9333ea;
   --c: #0f766e;
+  --d: #c2410c;
+  --e: #db2777;
+  --f: #4d7c0f;
   --ok: #15803d;
   --bad: #b91c1c;
   --warn: #b45309;
@@ -22,6 +25,9 @@
     --a: #6ea0ff;
     --b: #c08cf7;
     --c: #3fc1b3;
+    --d: #fb923c;
+    --e: #f472b6;
+    --f: #a3e635;
     --ok: #4ade80;
     --bad: #f87171;
     --warn: #fbbf24;
@@ -84,6 +90,9 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
 .agent-a { border-top-color: var(--a); }
 .agent-b { border-top-color: var(--b); }
 .agent-c { border-top-color: var(--c); }
+.agent-d { border-top-color: var(--d); }
+.agent-e { border-top-color: var(--e); }
+.agent-f { border-top-color: var(--f); }
 .agent header, .step header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agent .state { margin-left: auto; font-size: 0.82rem; color: var(--muted); }
 .agent.working .state { color: var(--warn); font-weight: 600; }
@@ -99,6 +108,9 @@ dd { font-weight: 600; font-variant-numeric: tabular-nums; }
 .badge-a { background: var(--a); }
 .badge-b { background: var(--b); }
 .badge-c { background: var(--c); }
+.badge-d { background: var(--d); }
+.badge-e { background: var(--e); }
+.badge-f { background: var(--f); }
 @media (prefers-color-scheme: dark) { .badge { color: #111; } }
 
 /* Timeline + history */
@@ -112,6 +124,9 @@ dd { font-weight: 600; font-variant-numeric: tabular-nums; }
 .step-a { border-left-color: var(--a); }
 .step-b { border-left-color: var(--b); }
 .step-c { border-left-color: var(--c); }
+.step-d { border-left-color: var(--d); }
+.step-e { border-left-color: var(--e); }
+.step-f { border-left-color: var(--f); }
 .step.directive { border-color: var(--warn); }
 .step header .muted { margin-left: auto; }
 .step ul { list-style: disc; padding-left: 20px; font-size: 0.88rem; }
@@ -192,3 +207,12 @@ dialog p { overflow-wrap: anywhere; }
 .ghost { color: var(--text); background: none; border: 1px solid var(--line); }
 .danger-solid { color: #fff; background: #b91c1c; border: 1px solid #b91c1c; }
 .danger-solid:hover { background: #991b1b; }
+
+.metrics { overflow-x: auto; }
+.metrics table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.metrics th, .metrics td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.metrics th:nth-child(-n+2), .metrics td:nth-child(-n+2) { text-align: left; }
+.metrics th { font-weight: 600; }
+.metrics .leader { background: color-mix(in srgb, var(--c) 8%, transparent); }
+.metrics .badge { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+#period { margin-left: auto; }

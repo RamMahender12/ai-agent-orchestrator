@@ -1,5 +1,6 @@
 import uuid
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable
 from core.models import (
@@ -12,15 +13,17 @@ from core.database import Database
 from core.cost_tracker import CostTracker
 from agents.agent_a_openai import AgentAOpenAI
 from agents.agent_b_claude import AgentBClaude
+from agents.agent_free import free_agents
+from agents.base_agent import BaseAgent
 from core.a2a import card_for, router as a2a_router, task_text
 
 class AgentCSupervisor:
     """
     Agent C: Meta-Orchestrator & Supervisor Agent.
-    - Interrogates Agent A and Agent B to discover capabilities and logs them to Database.
-    - Has A and B both answer the task and score each other's answer.
-    - Calculates real-time tokens and USD costs for Agent A, Agent B, and Agent C.
-    - Continues with the higher-scored answer; if it is below the pass score, instructs its author to revise it.
+    - Interrogates every worker (A, B, and the free-model agents D, E, F) and logs their capabilities to Database.
+    - Has all workers answer the task at once, then reviews each answer itself and sends that agent recommendations.
+    - Calculates real-time tokens and USD costs for every agent.
+    - Each agent below the pass score revises from C's recommendations; the higher-scored answer wins.
     - Commits full audit logs and metrics to SQLite and disk.
     """
     def __init__(
@@ -29,17 +32,25 @@ class AgentCSupervisor:
         agent_b: Optional[AgentBClaude] = None,
         database: Optional[Database] = None,
         quality_threshold: int = 80,
-        max_revisions: int = 3
+        max_revisions: int = 3,
+        extra_agents: Optional[List[BaseAgent]] = None,
     ):
         self.name = "Agent C (Supervisor)"
         self.provider = "Orchestration-Core"
         self.model = "supervisor-engine"
         self.agent_a = agent_a or AgentAOpenAI()
         self.agent_b = agent_b or AgentBClaude()
+        # free-model workers; default to the FREE_MODELS list, in the same simulation mode as A
+        self.extra_agents = free_agents(self.agent_a.simulation_mode) if extra_agents is None else extra_agents
         self.db = database or Database()
         self.quality_threshold = quality_threshold
         self.max_revisions = max_revisions
         self.a2a = a2a_router
+
+    @property
+    def workers(self) -> Dict[str, BaseAgent]:
+        """Every agent that answers the task, keyed by its letter."""
+        return {"a": self.agent_a, "b": self.agent_b, **{agent.key: agent for agent in self.extra_agents}}
 
     def get_profile(self):
         from core.models import AgentProfile
@@ -49,29 +60,29 @@ class AgentCSupervisor:
             model=self.model,
             role="Supervisor",
             capabilities=[
-                "A2A discovery of Agent A and Agent B",
+                "A2A discovery of every worker agent",
                 "Task dispatch via message/send",
                 "Token and USD cost tracking",
-                "Cross-review: each agent scores the other's answer",
+                "Reviews both answers and recommends concrete improvements to each agent",
                 "Revision orders when quality is too low",
             ],
-            description="I am Agent C. I ask A and B what they do, have both answer the task over A2A, have each score the other's answer, log the work, track tokens and cost, and tell the author of the stronger answer to revise it when its score is too low.",
+            description="I am Agent C. I ask every worker agent what it does, have them all answer the task over A2A at once, score each answer myself and give each agent recommendations to improve it, log the work, track tokens and cost, and have every agent below the pass score revise.",
         )
 
     def bind_a2a(self):
-        """Publish A, B, and C on the shared A2A router."""
+        """Publish every worker and C on the shared A2A router."""
         worker_skills = [
             {"id": "describe", "name": "What I do", "description": "Return capabilities.", "tags": ["discovery"]},
             {"id": "draft", "name": "Draft", "description": "Answer the task.", "tags": ["create"]},
             {"id": "audit", "name": "Audit", "description": "Score the other agent's answer from 0 to 100.", "tags": ["review"]},
             {"id": "revise", "name": "Revise", "description": "Redo the work from supervisor critique.", "tags": ["revise"]},
         ]
-        self.a2a.bind("a", card_for(self.agent_a, worker_skills), lambda m: self._on_worker(self.agent_a, m))
-        self.a2a.bind("b", card_for(self.agent_b, worker_skills), lambda m: self._on_worker(self.agent_b, m))
+        for key, agent in self.workers.items():
+            self.a2a.bind(key, card_for(agent, worker_skills), lambda m, agent=agent: self._on_worker(agent, m))
         self.a2a.bind("c", card_for(self, [
             {"id": "describe", "name": "What I do", "description": "Discover A and B and report cost.", "tags": ["discovery"]},
-            {"id": "orchestrate", "name": "Orchestrate", "description": "Have A and B both answer, score each other, and revise the stronger answer until it passes.", "tags": ["orchestrate"]},
-            {"id": "monitor", "name": "Monitor", "description": "List A2A tasks and token cost for A, B, and C.", "tags": ["monitor"]},
+            {"id": "orchestrate", "name": "Orchestrate", "description": "Have every worker answer, recommend improvements to each, and have them revise until they pass.", "tags": ["orchestrate"]},
+            {"id": "monitor", "name": "Monitor", "description": "List A2A tasks and token cost for every agent.", "tags": ["monitor"]},
         ]), self._on_c)
 
     def _usage(self, model: str, prompt: str, completion: str):
@@ -133,13 +144,13 @@ class AgentCSupervisor:
             return {"text": body, "data": {"tasks": len(tasks), "total_tokens": tokens, "total_cost_usd": cost}, "usage": self._usage(self.model, text, body), "model": self.model}
         if skill == "describe" or text.lower().strip(" ?.!") in ("what do you do", "who are you"):
             self.bind_a2a()
-            cards = {key: self.a2a.card(key) for key in ("a", "b")}
+            cards = {key: self.a2a.card(key) for key in self.workers}
             for key, card in cards.items():
                 self.db.register_agent(self._profile_from_card(card, task_text(self.a2a.send(key, "What do you do?", skill="describe"))))
             body = (
-                "I am Agent C. I discover A (OpenAI) and B (Claude) from their A2A agent cards, "
+                "I am Agent C. I discover every worker from its A2A agent card, "
                 "task them with message/send, log every task, and sum token cost. "
-                f"A: {cards['a']['description']} B: {cards['b']['description']}"
+                + " ".join(f"{key.upper()}: {card['description']}" for key, card in cards.items())
             )
             return {"text": body, "data": {"cards": cards}, "usage": self._usage(self.model, text, body), "model": self.model}
         run = self.run_workflow(text)
@@ -191,11 +202,10 @@ class AgentCSupervisor:
         """
         Executes the full multi-agent orchestration lifecycle:
         1. Discovery & Capability Registration (stores in DB)
-        2. Agent A and Agent B each answer the task
-        3. Cross-review: B scores A's answer, A scores B's answer
-        4. Supervisor continues with the higher-scored answer
-        5. While that score < threshold, its author revises from the other agent's critique
-        6. Final output is the best-scoring draft; persistence and telemetry consolidation
+        2. Every worker answers the task, all at the same time
+        3. C scores each answer and sends its author recommendations to improve it
+        4. Every agent below threshold revises from C's recommendations, up to max_revisions
+        5. Final output is the best-scoring draft; persistence and telemetry consolidation
         """
         self.bind_a2a()
         run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
@@ -233,13 +243,39 @@ class AgentCSupervisor:
             self._record_step(run, step)
             return step
 
-        workers = {"a": self.agent_a, "b": self.agent_b}
-        other = {"a": "b", "b": "a"}
+        workers = self.workers
+
+        def fan_out(fn: Callable[[str], Any], keys: List[str]) -> Dict[str, Any]:
+            """Call fn for every agent at once, so one slow free model doesn't hold up the rest. Errors come back as values."""
+            if not keys:
+                return {}
+            with ThreadPoolExecutor(max_workers=len(keys)) as pool:
+                futures = {key: pool.submit(fn, key) for key in keys}
+            results = {}
+            for key, future in futures.items():
+                try:
+                    results[key] = future.result()
+                except Exception as exc:
+                    results[key] = exc
+            return results
+
+        def set_status(status: str, message: str):
+            run.status = status
+            self.db.update_run(run)
+            emit("status_change", {"status": status, "message": message})
+
+        def failed(key: str, revision: int, what: str, exc: Exception):
+            agent = workers[key]
+            step = log(
+                agent.name, self.name, "AGENT_FAILED", f"{agent.name} ({agent.model}) {what}: {exc}",
+                revision=revision, model=agent.model, error=str(exc),
+            )
+            emit("agent_failed", {"revision": revision, "agent": agent.name, "error": str(exc), "step": step.model_dump()})
 
         # ==========================================
-        # STEP 1: Supervisor queries A and B capabilities
+        # STEP 1: Supervisor queries every worker's capabilities
         # ==========================================
-        emit("status_change", {"status": "DISCOVERY", "message": "Supervisor interrogating Agent A and Agent B..."})
+        emit("status_change", {"status": "DISCOVERY", "message": f"Supervisor interrogating {len(workers)} agents..."})
 
         for key in workers:
             # Query the agent over A2A (agent card + message/send)
@@ -255,145 +291,140 @@ class AgentCSupervisor:
             )
             emit("agent_registered", {"agent": profile.model_dump(), "step": step.model_dump()})
 
-        def write(key: str, revision: int, feedback: Optional[str] = None, previous: Optional[str] = None) -> str:
-            """Have one agent answer the task (or revise its answer) over A2A message/send."""
-            agent = workers[key]
-            run.status = f"REVISION_{revision}_GENERATION_{key.upper()}"
-            self.db.update_run(run)
-            emit("status_change", {
-                "status": run.status,
-                "message": f"Supervisor dispatching task to {agent.name} (Revision {revision})..."
-            })
-            if not feedback:  # on later rounds the REVISE_DIRECTIVE step is C's message
-                log(self.name, agent.name, "TASK_DISPATCH", f"Do this task and send me your draft:\n{task}", revision=revision)
-            sent = self.a2a.send(key, task, skill="revise" if feedback else "draft", data={
+        def write_all(keys: List[str], revision: int, feedback: Optional[Dict[str, str]] = None,
+                      previous: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+            """Have these agents answer the task (or revise) over A2A at the same time. Agents that fail are left out."""
+            feedback, previous = feedback or {}, previous or {}
+            set_status(f"REVISION_{revision}_GENERATION_ALL", f"Supervisor dispatching task to {len(keys)} agents (Revision {revision})...")
+            for key in keys:
+                if key not in feedback:  # on later rounds the REVISE_DIRECTIVE step is C's message
+                    log(self.name, workers[key].name, "TASK_DISPATCH", f"Do this task and send me your draft:\n{task}", revision=revision)
+            sent = fan_out(lambda key: self.a2a.send(key, task, skill="revise" if key in feedback else "draft", data={
                 "task": task,
                 "revision": revision,
-                "feedback": feedback,
-                "previous": previous,
-            }, context_id=run_id)
-            draft = task_text(sent)
-            usage = TokenUsage(**sent["metadata"]["usage"])
-            step = log(
-                agent.name, self.name, "REVISED_DRAFT" if feedback else "DRAFT_SUBMISSION", draft, usage,
-                revision=revision, **self._a2a_meta(sent),
-            )
-            emit("draft_produced", {
-                "revision": revision,
-                "agent": agent.name,
-                "draft": draft,
-                "tokens": usage.model_dump(),
-                "step": step.model_dump()
-            })
-            return draft
+                "feedback": feedback.get(key),
+                "previous": previous.get(key),
+            }, context_id=run_id), keys)
+            drafts = {}
+            for key, result in sent.items():
+                if isinstance(result, Exception):
+                    failed(key, revision, "did not answer", result)
+                    continue
+                agent = workers[key]
+                draft = task_text(result)
+                usage = TokenUsage(**result["metadata"]["usage"])
+                step = log(
+                    agent.name, self.name, "REVISED_DRAFT" if key in feedback else "DRAFT_SUBMISSION", draft, usage,
+                    revision=revision, model=agent.model, **self._a2a_meta(result),
+                )
+                emit("draft_produced", {
+                    "revision": revision,
+                    "agent": agent.name,
+                    "draft": draft,
+                    "tokens": usage.model_dump(),
+                    "step": step.model_dump()
+                })
+                drafts[key] = draft
+            return drafts
 
-        def score(author: str, draft: str, revision: int) -> EvaluationResult:
-            """Have the other agent score this author's draft, so nobody grades their own work."""
-            reviewer = workers[other[author]]
-            run.status = f"REVISION_{revision}_AUDIT_{other[author].upper()}"
-            self.db.update_run(run)
-            emit("status_change", {
-                "status": run.status,
-                "message": f"Supervisor routing {workers[author].name}'s draft to {reviewer.name} for critical audit..."
-            })
-            log(
-                self.name, reviewer.name, "AUDIT_REQUEST",
-                f"Score {workers[author].name}'s attempt {revision} from 0 to 100 against the task. List the problems. Pass score is {self.quality_threshold}.",
-                revision=revision,
-            )
-            sent = self.a2a.send(other[author], task, skill="audit", data={
-                "task": task,
-                "draft": draft,
-                "revision": revision,
-                "threshold": self.quality_threshold,
-            }, context_id=run_id)
-            evaluation = EvaluationResult(**sent["metadata"]["result"])
-            run.evaluations.append(evaluation)
-            self.db.log_evaluation(run.run_id, evaluation)
-            step = log(
-                reviewer.name, self.name, "AUDIT_VERDICT",
-                (
-                    f"Quality Score: {evaluation.score}/100. "
-                    f"Passed: {evaluation.passed}. "
-                    f"Flaws Detected: {len(evaluation.flaws)}. "
-                    f"Recommendation: {evaluation.actionable_feedback}"
-                ),
-                evaluation.token_usage,
-                evaluation=evaluation.model_dump(), author=workers[author].name, **self._a2a_meta(sent),
-            )
-            emit("audit_completed", {
-                "revision": revision,
-                "author": workers[author].name,
-                "evaluation": evaluation.model_dump(),
-                "step": step.model_dump()
-            })
-            return evaluation
+        def review_all(drafts: Dict[str, str], revision: int) -> Dict[str, EvaluationResult]:
+            """C scores every draft itself and writes each agent tips for a better answer."""
+            set_status(f"REVISION_{revision}_REVIEW_ALL", f"Supervisor reviewing {len(drafts)} answers and writing recommendations...")
+            results = fan_out(lambda key: self.recommend(task, drafts[key], revision), list(drafts))
+            verdicts = {}
+            for key, evaluation in results.items():
+                if isinstance(evaluation, Exception):
+                    failed(key, revision, "could not be reviewed by C", evaluation)
+                    continue
+                agent = workers[key]
+                run.evaluations.append(evaluation)
+                self.db.log_evaluation(run.run_id, evaluation)
+                step = log(
+                    self.name, agent.name, "SUPERVISOR_RECOMMENDATIONS",
+                    f"Quality Score: {evaluation.score}/100. Passed: {evaluation.passed}.\nRecommendations:\n"
+                    + "\n".join(f"- {tip}" for tip in evaluation.flaws),
+                    evaluation.token_usage,
+                    evaluation=evaluation.model_dump(), author=agent.name, revision=revision,
+                )
+                emit("audit_completed", {
+                    "revision": revision,
+                    "author": agent.name,
+                    "evaluation": evaluation.model_dump(),
+                    "step": step.model_dump()
+                })
+                verdicts[key] = evaluation
+            return verdicts
 
         # ==========================================
-        # STEP 2: Both agents answer, then score each other's answer
+        # STEP 2: Every agent answers; C reviews each answer and sends that agent its recommendations
         # ==========================================
-        # ponytail: A and B are called one after the other; run them in threads if the wait matters
         revision = 1
         run.revisions_count = revision
-        drafts = {key: write(key, revision) for key in workers}
-        verdicts = {key: score(key, drafts[key], revision) for key in workers}
+        drafts = write_all(list(workers), revision)
+        verdicts = review_all(drafts, revision)
+        if not verdicts:
+            raise RuntimeError("No agent produced an answer C could score. See the AGENT_FAILED steps.")
+        best = {key: (drafts[key], verdicts[key]) for key in verdicts}
 
-        # Supervisor picks the stronger answer (a tie goes to A)
-        lead = max(workers, key=lambda key: verdicts[key].score)
+        # ==========================================
+        # STEP 3: Every agent still below the pass score revises from C's recommendations
+        # ==========================================
+        while revision < self.max_revisions:
+            lagging = [key for key in verdicts if verdicts[key].score < self.quality_threshold]
+            if not lagging:
+                break
+            feedback = {}
+            for key in lagging:
+                evaluation = verdicts[key]
+                emit("status_change", {
+                    "status": "SUPERVISOR_INTERVENTION",
+                    "message": f"{workers[key].name} scored {evaluation.score}/{self.quality_threshold}. Supervisor sending recommendations..."
+                })
+                feedback[key] = (
+                    f"Supervisor Recommendations for Revision {revision + 1} (you scored {evaluation.score}/{self.quality_threshold}):\n"
+                    + "\n".join(f"- {tip}" for tip in evaluation.flaws)
+                    + f"\nKeep what works: {'; '.join(evaluation.strengths)}\n"
+                    f"Summary: {evaluation.actionable_feedback}"
+                )
+                order = self.a2a.send(key, feedback[key], skill="instruct", data={
+                    "task": task, "revision": revision,
+                }, context_id=run_id)
+                step = log(
+                    self.name, workers[key].name, "REVISE_DIRECTIVE", feedback[key], TokenUsage(**order["metadata"]["usage"]),
+                    revision=revision, score=evaluation.score, **self._a2a_meta(order),
+                )
+                emit("supervisor_intervention", {
+                    "revision": revision,
+                    "agent": workers[key].name,
+                    "critique": feedback[key],
+                    "score": evaluation.score,
+                    "step": step.model_dump()
+                })
+            revision += 1
+            run.revisions_count = revision
+            revised = write_all(lagging, revision, feedback, {key: drafts[key] for key in lagging})
+            drafts.update(revised)
+            new_verdicts = review_all(revised, revision)
+            verdicts.update(new_verdicts)  # an agent whose revision failed keeps its last verdict
+            for key, evaluation in new_verdicts.items():
+                if evaluation.score > best[key][1].score:  # a revision can score lower; keep the best one
+                    best[key] = (drafts[key], evaluation)
+
+        # Supervisor picks the strongest final answer (a tie goes to the earlier agent: A, then B, ...)
+        scores = {workers[key].name: best[key][1].score for key in best}
+        lead = max(best, key=lambda key: best[key][1].score)
         author = workers[lead]
-        draft, evaluation = drafts[lead], verdicts[lead]
-        best_draft, best = draft, evaluation
+        best_draft, best = best[lead]
         step = log(
             self.name, "ALL", "WINNER_SELECTED",
-            (
-                f"{self.agent_a.name} scored {verdicts['a'].score}/100 and {self.agent_b.name} scored {verdicts['b'].score}/100. "
-                f"Continuing with {author.name}'s answer."
-            ),
-            winner=author.name, scores={workers[key].name: verdicts[key].score for key in workers},
+            ", ".join(f"{name} scored {score}/100" for name, score in scores.items()) + f". Going with {author.name}'s answer.",
+            winner=author.name, scores=scores,
         )
         emit("winner_selected", {
             "winner": author.name,
             "scores": step.metadata["scores"],
             "step": step.model_dump()
         })
-
-        # ==========================================
-        # STEP 3: Quality gate. The winner revises from the other agent's critique until it passes
-        # ==========================================
-        while evaluation.score < self.quality_threshold and revision < self.max_revisions:
-            emit("status_change", {
-                "status": "SUPERVISOR_INTERVENTION",
-                "message": f"Quality score {evaluation.score}/100 failed threshold {self.quality_threshold}. Supervisor instructing {author.name} to revise..."
-            })
-
-            feedback = (
-                f"Supervisor Directive: Revision {revision} fell below quality threshold ({evaluation.score}/{self.quality_threshold}).\n"
-                f"Critique from {workers[other[lead]].name}:\n"
-                f"- Identified Flaws: {'; '.join(evaluation.flaws)}\n"
-                f"- Actionable Instructions: {evaluation.actionable_feedback}\n"
-                f"Requirement: Incorporate all missing specifications immediately in your next submission."
-            )
-            order = self.a2a.send(lead, feedback, skill="instruct", data={
-                "task": task, "revision": revision,
-            }, context_id=run_id)
-            step = log(
-                self.name, author.name, "REVISE_DIRECTIVE", feedback, TokenUsage(**order["metadata"]["usage"]),
-                revision=revision, score=evaluation.score, **self._a2a_meta(order),
-            )
-            emit("supervisor_intervention", {
-                "revision": revision,
-                "agent": author.name,
-                "critique": feedback,
-                "score": evaluation.score,
-                "step": step.model_dump()
-            })
-
-            revision += 1
-            run.revisions_count = revision
-            draft = write(lead, revision, feedback, previous=draft)
-            evaluation = score(lead, draft, revision)
-            if evaluation.score > best.score:  # a revision can score lower; keep the best one
-                best_draft, best = draft, evaluation
 
         run.final_output = best_draft
         run.completed_at = datetime.utcnow()
@@ -420,6 +451,49 @@ class AgentCSupervisor:
 
         self.db.update_run(run)
         return run
+
+    def recommend(self, task: str, draft: str, revision: int) -> EvaluationResult:
+        """Score a draft and list concrete improvements, e.g. "wear a helmet and you won't get hurt when you fall"."""
+        if self.agent_a.simulation_mode:
+            done = revision > 1
+            usage = CostTracker.create_token_usage(self.model, 450 + CostTracker.estimate_tokens_from_text(draft), 180)
+            parsed = {
+                "score": 93 if done else 70,
+                "strengths": ["Clear structure", "Covers the core of the task"],
+                "recommendations": [] if done else [
+                    "Add retries with exponential backoff and jitter so a flaky dependency doesn't fail the whole request.",
+                    "Put numbers on it (P95/P99 latency, uptime target) so the design can be checked against goals.",
+                    "Show a short code or pseudocode snippet so the reader can see how the core path works.",
+                    "Say what gets logged and traced so failures can be found quickly in production.",
+                ],
+                "summary": "Ready to ship." if done else "Solid outline; the tips above turn it into something production-ready.",
+            }
+        else:
+            from core.llm import complete
+            text, usage = complete(
+                "You are Agent C, a supervisor coaching another agent. Do not just list flaws: give concrete, "
+                "practical recommendations that would make the answer better, each phrased as an action plus its payoff "
+                "(e.g. 'Wear a helmet so a fall doesn't hurt you', 'Keep a firm grip so you can ride faster'). "
+                "Respond ONLY with valid JSON:\n"
+                '{"score": int (0-100), "strengths": [string], "recommendations": [string], "summary": string}',
+                f"TASK:\n{task}\n\nANSWER (attempt {revision}):\n{draft}",
+                prefer="openai",
+            )
+            try:
+                parsed = json.loads(text[text.find("{"):text.rfind("}") + 1])
+            except Exception:
+                parsed = {"score": 70, "strengths": [], "recommendations": [], "summary": text.strip()}
+        score = int(parsed.get("score", 70))
+        return EvaluationResult(
+            revision=revision,
+            reviewer=self.name,
+            score=score,
+            passed=score >= self.quality_threshold,
+            strengths=parsed.get("strengths") or [],
+            flaws=parsed.get("recommendations") or [],  # stored in the flaws column; shown as recommendations
+            actionable_feedback=parsed.get("summary", ""),
+            token_usage=usage,
+        )
 
     def _record_step(self, run: OrchestrationRun, step: StepLog):
         """Append step, aggregate telemetry, and persist to SQLite."""

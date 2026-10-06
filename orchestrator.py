@@ -59,13 +59,12 @@ def main():
     # Determine simulation vs live mode
     simulation_mode = not args.live
     if not simulation_mode:
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-        if not openai_key or not anthropic_key:
-            console.print("[yellow]Notice: One or both API keys are missing in .env. Falling back to realistic simulation mode.[/yellow]")
+        from core.llm import has_api_key
+        if not has_api_key():
+            console.print("[yellow]Notice: No API key found in .env (OPENROUTER_API_KEY etc.). Falling back to realistic simulation mode.[/yellow]")
             simulation_mode = True
         else:
-            console.print("[green]Running in LIVE API Mode with OpenAI & Anthropic credentials![/green]")
+            console.print("[green]Running in LIVE API Mode![/green]")
     else:
         console.print("[cyan]Running in SIMULATION Mode (Zero-cost, works immediately without API keys). Pass --live to use real APIs.[/cyan]\n")
 
@@ -117,16 +116,18 @@ def main():
         elif event_type == "audit_completed":
             ev = data["evaluation"]
             color = "green" if ev["passed"] else "red"
-            console.print(f"\n[bold {color}]=== {ev['reviewer']} Audit of {data['author']} ===[/bold {color}]")
+            console.print(f"\n[bold {color}]=== {ev['reviewer']} Review of {data['author']} ===[/bold {color}]")
             console.print(f"Score: [{color} bold]{ev['score']}/100[/{color} bold] | Verdict: [{color}]{'PASSED' if ev['passed'] else 'REVISION REQUIRED'}[/{color}]")
             if ev["flaws"]:
-                console.print(f"[bold red]Flaws Identified:[/bold red]")
-                for flaw in ev["flaws"]:
-                    console.print(f"  [-] {flaw}")
-            console.print(f"[bold yellow]Feedback Sent to Supervisor:[/bold yellow] {ev['actionable_feedback']}")
+                console.print(f"[bold yellow]Recommendations:[/bold yellow]")
+                for tip in ev["flaws"]:
+                    console.print(f"  [+] {tip}")
+            console.print(f"[bold yellow]Summary:[/bold yellow] {ev['actionable_feedback']}")
+        elif event_type == "agent_failed":
+            console.print(f"[bold red][x] {data['agent']} failed:[/bold red] {data['error']}")
         elif event_type == "winner_selected":
             scores = ", ".join(f"{name} {score}/100" for name, score in data["scores"].items())
-            console.print(f"\n[bold cyan]>> Supervisor continues with {data['winner']}'s answer[/bold cyan] ({scores})")
+            console.print(f"\n[bold cyan]>> Supervisor picks {data['winner']}'s answer[/bold cyan] ({scores})")
         elif event_type == "supervisor_intervention":
             console.print(Panel(
                 f"[bold red]Supervisor Intervention Triggered:[/bold red]\n"

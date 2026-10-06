@@ -9,6 +9,7 @@ class BaseAgent(ABC):
     prefer = "openai"  # provider core.llm tries first for this agent
     sim_first_score = 68  # simulation only: the score this agent gives a first draft
     simulation_mode = True
+    fallback = True  # let core.llm swap in another free model when this one fails
 
     def __init__(self, name: str, provider: str, model: str, role: str):
         self.name = name
@@ -48,12 +49,12 @@ class BaseAgent(ABC):
             if previous:
                 user_prompt += f"\nYOUR REVISION {revision - 1}:\n{previous}\n"
             user_prompt += (
-                f"\nSUPERVISOR CRITIQUE FROM REVISION {revision - 1}:\n"
+                f"\nSUPERVISOR RECOMMENDATIONS FOR REVISION {revision - 1}:\n"
                 f"{feedback}\n"
-                "Please address every criticism and generate an enhanced revision."
+                "Apply every recommendation and generate an enhanced revision."
             )
 
-        return complete(system_prompt, user_prompt, prefer=self.prefer, model=self.model)
+        return complete(system_prompt, user_prompt, prefer=self.prefer, model=self.model, fallback=self.fallback)
 
     def _draft_simulated(self, task: str, revision: int, feedback: Optional[str]) -> Tuple[str, TokenUsage]:
         """Realistic simulated generation reflecting iterative improvement."""
@@ -84,10 +85,10 @@ We propose implementing a modular, distributed architecture tailored to address:
             content = f"""### Enhanced Production-Ready Blueprint: {task.splitlines()[0][:60]}
 **Author:** {self.name} ({self.model})
 **Status:** Revised Specification (Revision {revision})
-**Changelog:** Directly incorporated the Supervisor's directive and the other agent's critique.
+**Changelog:** Applied the Supervisor's recommendations.
 
 #### 1. Executive Summary & Objective Alignment
-This revised architecture explicitly resolves the gaps identified in the cross-review, establishing an enterprise-grade solution for:
+This revised architecture explicitly applies the supervisor's recommendations, establishing an enterprise-grade solution for:
 > *"{task}"*
 
 #### 2. Concrete Architectural Specifications

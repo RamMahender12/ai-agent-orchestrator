@@ -128,6 +128,13 @@ async def get_runs():
     """Retrieve recent runs from SQLite."""
     return db.get_run_history(limit=25)
 
+@app.get("/api/metrics")
+async def get_metrics(period: str = "day"):
+    """Agent A vs Agent B performance per day, week, or month."""
+    if period not in ("day", "week", "month"):
+        raise HTTPException(status_code=400, detail="period must be day, week, or month")
+    return db.get_agent_metrics(period)
+
 @app.delete("/api/runs")
 async def delete_all_runs():
     """Clear the run history."""
@@ -271,7 +278,7 @@ async def root_agent_card(request: Request):
 @app.get("/a2a")
 async def a2a_catalog(request: Request):
     base = str(request.base_url)
-    return {"agents": [a2a_proto.router.public_card(key, base) for key in ("a", "b", "c")]}
+    return {"agents": [a2a_proto.router.public_card(key, base) for key in a2a_proto.router.keys()]}
 
 
 @app.get("/a2a/{agent_id}/.well-known/agent-card.json")

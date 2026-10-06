@@ -4,6 +4,8 @@ Clients discover an agent card, then call message/send and tasks/get.
 Same router serves HTTP and in-process calls from Agent C.
 """
 import json
+import re
+import threading
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -11,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "a2a.jsonl"
+_LOG_LOCK = threading.Lock()  # C calls the workers from several threads at once
 
 ALIASES = {
     "a": "a", "openai": "a", "agent_a": "a",
@@ -67,6 +70,9 @@ class A2ARouter:
         if canon not in self._agents:
             raise KeyError(key)
         return canon
+
+    def keys(self):
+        return list(self._agents)
 
     def card(self, key: str) -> Dict[str, Any]:
         return deepcopy(self._agents[self.resolve(key)]["card"])
@@ -193,7 +199,7 @@ class A2ARouter:
     def _audit(self, record: Dict[str, Any]):
         LOG_PATH.parent.mkdir(exist_ok=True)
         record = {"ts": _now(), **record}
-        with LOG_PATH.open("a", encoding="utf-8") as fh:
+        with _LOG_LOCK, LOG_PATH.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
 
 
@@ -203,7 +209,8 @@ def _now() -> str:
 
 def card_for(agent, skills) -> Dict[str, Any]:
     profile = agent.get_profile()
-    key = {"OpenAI": "a", "Anthropic": "b"}.get(profile.provider, "c")
+    match = re.search(r"Agent ([A-Z])", profile.name)
+    key = match.group(1).lower() if match else "c"
     return {
         "name": profile.name,
         "description": profile.description,
@@ -263,14 +270,24 @@ def demo():
     from core.database import Database
     from agents.agent_c_supervisor import AgentCSupervisor
 
+    from agents.agent_free import FreeAgent
+
+    class Broken(FreeAgent):
+        def draft(self, task, context=None):
+            raise RuntimeError("rate limited")
+
     db = Database(Path(tempfile.mkdtemp()) / "t.db")
-    supervisor = AgentCSupervisor(database=db, max_revisions=2)
+    supervisor = AgentCSupervisor(database=db, max_revisions=2, extra_agents=[
+        FreeAgent("D", "Probe", "probe-model"), Broken("E", "Broken", "broken-model"),
+    ])
     run = supervisor.run_workflow("Build a rate limiter")
     assert run.status == "COMPLETED", run.status
     assert run.revisions_count == 2
-    # B scores A's answer, A scores B's answer, B wins, A re-scores B's revision
-    assert [e.score for e in run.evaluations] == [68, 74, 94], run.evaluations
-    assert "Agent B" in run.final_output and "Revision 2" in run.final_output
+    # C scores A, B, D in round 1, they all revise, C re-scores them; E fails and is left out
+    assert [e.score for e in run.evaluations] == [70, 70, 70, 93, 93, 93], run.evaluations
+    assert all(e.reviewer == supervisor.name for e in run.evaluations)
+    assert [s.sender for s in run.steps if s.action == "AGENT_FAILED"] == ["Agent E (Broken)"]
+    assert "Agent A" in run.final_output and "Revision 2" in run.final_output
     assert run.total_cost_usd > 0
     assert any(step.metadata.get("a2a") for step in run.steps)
     print("a2a demo ok", run.total_tokens, run.total_cost_usd)

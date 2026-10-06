@@ -10,7 +10,7 @@
   <header class="top">
     <div>
       <h1>Agent Supervisor</h1>
-      <p class="muted">Agent C asks A and B what they do, logs their work, tracks tokens and cost, has A and B each answer and score the other's answer, then tells the author of the stronger answer to redo it when its score is too low.</p>
+      <p class="muted">Agent C sends your prompt to ChatGPT, Claude and three free models (Apodex, Ling, Dots) at once, scores every answer, gives each agent recommendations, has any agent below the pass score revise, and tracks tokens and cost.</p>
     </div>
     <div class="top-right">
       <span class="pill" id="health">Connecting…</span>
@@ -32,6 +32,16 @@
     </form>
 
     <section class="agents" id="agents" aria-label="Agents"></section>
+
+    <section class="card">
+      <h2 class="history-head">Agent performance <span class="muted small">scored by C, UTC</span>
+        <select id="period" aria-label="Group by">
+          <option value="day">Daily</option>
+          <option value="week">Weekly</option>
+          <option value="month">Monthly</option>
+        </select></h2>
+      <div class="metrics" id="metrics"></div>
+    </section>
 
     <div class="columns">
       <section class="card">

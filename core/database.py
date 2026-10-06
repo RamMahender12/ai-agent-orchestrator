@@ -268,6 +268,46 @@ class Database:
                 "usage": [dict(u) for u in usage_rows]
             }
 
+    def get_agent_metrics(self, period: str = "day", limit: int = 12) -> List[Dict[str, Any]]:
+        """Per-agent score, pass rate, wins, tokens and cost, grouped by day, week or month (UTC)."""
+        fmt = {"day": "%Y-%m-%d", "week": "%Y-W%W", "month": "%Y-%m"}[period]
+        with self.get_connection() as conn:
+            periods = [r[0] for r in conn.execute(
+                "SELECT DISTINCT strftime(?, timestamp) AS p FROM steps ORDER BY p DESC LIMIT ?", (fmt, limit))]
+            if not periods:
+                return []
+            marks = ",".join("?" * len(periods))
+            rows: Dict[tuple, Dict[str, Any]] = {}
+
+            def row(p, agent):
+                return rows.setdefault((p, agent), {
+                    "period": p, "agent": agent, "answers_reviewed": 0, "avg_score": None, "best_score": None,
+                    "pass_rate": None, "first_try_pass_rate": None, "wins": 0, "tokens": 0, "cost_usd": 0.0,
+                })
+
+            # Scores: C's reviews (and older A/B cross-reviews) carry the author and evaluation in metadata
+            for r in conn.execute(f"""
+                SELECT strftime(?, timestamp) AS p, json_extract(metadata, '$.author') AS agent, COUNT(*) AS n,
+                       ROUND(AVG(json_extract(metadata, '$.evaluation.score')), 1) AS avg_score,
+                       MAX(json_extract(metadata, '$.evaluation.score')) AS best_score,
+                       ROUND(100.0 * AVG(json_extract(metadata, '$.evaluation.passed')), 1) AS pass_rate,
+                       ROUND(100.0 * AVG(CASE WHEN json_extract(metadata, '$.evaluation.revision') = 1
+                             THEN json_extract(metadata, '$.evaluation.passed') END), 1) AS first_try
+                FROM steps WHERE action IN ('SUPERVISOR_RECOMMENDATIONS', 'AUDIT_VERDICT') AND p IN ({marks})
+                GROUP BY p, agent HAVING agent IS NOT NULL""", (fmt, *periods)):
+                row(r["p"], r["agent"]).update(answers_reviewed=r["n"], avg_score=r["avg_score"], best_score=r["best_score"],
+                                              pass_rate=r["pass_rate"], first_try_pass_rate=r["first_try"])
+            for r in conn.execute(f"""
+                SELECT strftime(?, timestamp) AS p, json_extract(metadata, '$.winner') AS agent, COUNT(*) AS n
+                FROM steps WHERE action = 'WINNER_SELECTED' AND p IN ({marks}) GROUP BY p, agent HAVING agent IS NOT NULL""", (fmt, *periods)):
+                row(r["p"], r["agent"])["wins"] = r["n"]
+            for r in conn.execute(f"""
+                SELECT strftime(?, timestamp) AS p, sender AS agent, SUM(tokens_total) AS tokens, ROUND(SUM(cost_usd), 6) AS cost
+                FROM steps WHERE sender LIKE 'Agent %' AND sender NOT LIKE 'Agent C%' AND p IN ({marks})
+                GROUP BY p, agent HAVING agent IS NOT NULL""", (fmt, *periods)):
+                row(r["p"], r["agent"]).update(tokens=r["tokens"], cost_usd=r["cost"])
+        return sorted(rows.values(), key=lambda r: (r["period"], r["agent"]), reverse=True)
+
     def fail_run(self, run_id: str, error: str):
         """Mark a run FAILED so it never sits in a half-finished status."""
         with self.get_connection() as conn:
