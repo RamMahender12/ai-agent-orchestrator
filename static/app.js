@@ -10,11 +10,13 @@ const DONE = new Set(["COMPLETED", "MAX_REVISIONS_REACHED", "FAILED"]);
 const STATUS_LABEL = { COMPLETED: "Approved", MAX_REVISIONS_REACHED: "Not approved", FAILED: "Failed" };
 const ROLES = { a: "ChatGPT", b: "Claude", c: "Supervisor" };
 const C_DESCRIPTION =
-  "Asks every agent what it does, has them all answer the task at once, scores each answer and gives that agent " +
+  "Sends your prompt to every agent at once, scores each answer and gives that agent " +
   "recommendations, logs every step, adds up tokens and cost, and has every agent below the pass score revise.";
 // A and B have friendly names; the free-model agents use the label in their name, e.g. "Agent D (Apodex)"
 const who = (name) => ROLES[keyOf(name)] || (/\(([^)]*)\)/.exec(name || "") || [, keyOf(name).toUpperCase()])[1];
-const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : k.toUpperCase());
+// free-model agents from agents/agent_free.py FREE_MODELS, so their cards show before C has registered them
+const FREE = { d: "Apodex", e: "Ling", f: "Dots" };
+const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : FREE[k] || k.toUpperCase());
 const rival = (name) => ROLES[keyOf(name) === "a" ? "b" : "a"];
 const STEP_TITLE = {
   CAPABILITY_DISCOVERY: (s) => `C asked ${who(s.receiver)} what it does`,
@@ -52,7 +54,7 @@ function liveText(run) {
   if (run.status.includes("GENERATION")) return attempt > 1 ? `${ROLES[k]} is rewriting its answer (attempt ${attempt})` : `${ROLES[k]} is writing its answer`;
   if (run.status.includes("REVIEW")) return `Supervisor is reviewing ${ROLES[run.status.slice(-1).toLowerCase()]}'s attempt ${attempt}`;
   if (run.status.includes("AUDIT")) return `${ROLES[k]} is scoring ${ROLES[k === "a" ? "b" : "a"]}'s attempt ${attempt}`;
-  return "Supervisor C is asking ChatGPT and Claude what they do";
+  return "Supervisor C is sending the task to every agent";
 }
 
 async function api(path, options) {
@@ -74,14 +76,14 @@ function workingAgent(status) {
 
 function renderAgents(run, usage = []) {
   const working = run ? workingAgent(run.status) : null;
-  const keys = [...new Set(["a", "b", ...Object.keys(agents).sort()]), "c"];
+  const keys = [...new Set(["a", "b", ...Object.keys(FREE), ...Object.keys(agents).sort()]), "c"];
   $("agents").innerHTML = keys.map((k) => {
     const busy = working === k || (working === "all" && k !== "c");
     const info = agents[k];
     const used = usage.find((u) => keyOf(u.agent) === k) || {};
     const about = k === "c" ? C_DESCRIPTION
       : info ? esc(info.description)
-      : "Not asked yet. Run a task and C will ask this agent what it does.";
+      : "Not run yet. Run a task and C will send it to this agent.";
     return `
       <article class="card agent agent-${k} ${busy ? "working" : ""}">
         <header>

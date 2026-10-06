@@ -273,23 +273,13 @@ class AgentCSupervisor:
             emit("agent_failed", {"revision": revision, "agent": agent.name, "error": str(exc), "step": step.model_dump()})
 
         # ==========================================
-        # STEP 1: Supervisor queries every worker's capabilities
+        # STEP 1: Register every worker from its A2A agent card (no "What do you do?" round trip)
         # ==========================================
-        emit("status_change", {"status": "DISCOVERY", "message": f"Supervisor interrogating {len(workers)} agents..."})
-
         for key in workers:
-            # Query the agent over A2A (agent card + message/send)
-            desc = self.a2a.send(key, "What do you do?", skill="describe", context_id=run_id)
-            profile = self._profile_from_card(self.a2a.card(key), task_text(desc))
+            profile = self._profile_from_card(self.a2a.card(key), "")
             self.db.register_agent(profile)
             run.agent_profiles[profile.name] = profile
-            step = log(
-                self.name, profile.name, "CAPABILITY_DISCOVERY",
-                f'C asked: "What do you do?"\n{profile.name} answered: {task_text(desc)}\nModel: {profile.model}',
-                TokenUsage(**(desc["metadata"]["usage"])),
-                profile=profile.model_dump(), **self._a2a_meta(desc),
-            )
-            emit("agent_registered", {"agent": profile.model_dump(), "step": step.model_dump()})
+            emit("agent_registered", {"agent": profile.model_dump()})
 
         def write_all(keys: List[str], revision: int, feedback: Optional[Dict[str, str]] = None,
                       previous: Optional[Dict[str, str]] = None) -> Dict[str, str]:
