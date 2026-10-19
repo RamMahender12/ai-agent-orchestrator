@@ -27,7 +27,7 @@ console = Console(force_terminal=True, legacy_windows=False)
 def main():
     console.print(Panel.fit(
         "[bold cyan]AI Agent Interactive Chat Room[/bold cyan]\n"
-        "[dim]Chat directly with OpenAI (A), Claude (B), Supervisor (C), or Collaborative Triad[/dim]",
+        "[dim]Chat directly with Laguna (A), Nemotron (B), Supervisor (C), or Collaborative Triad[/dim]",
         border_style="cyan"
     ))
 
@@ -49,16 +49,16 @@ def main():
     console.print("[bold yellow]Choose whom you want to chat with:[/bold yellow]")
     console.print("  [cyan]1[/cyan]. [bold]Collaborative Triad[/bold] (Supervisor C coordinates, Agent A drafts, Agent B critiques)")
     console.print("  [cyan]2[/cyan]. [bold]Agent C (Supervisor)[/bold] - Meta-orchestrator directing workflow")
-    console.print("  [cyan]3[/cyan]. [bold]Agent A (OpenAI)[/bold] - Creator & software engineer")
-    console.print("  [cyan]4[/cyan]. [bold]Agent B (Claude)[/bold] - Quality auditor & security evaluator")
+    console.print("  [cyan]3[/cyan]. [bold]Agent A (Laguna)[/bold] - Creator & software engineer")
+    console.print("  [cyan]4[/cyan]. [bold]Agent B (Nemotron)[/bold] - Quality auditor & security evaluator")
     
     choice = input("\nSelect mode (1-4, default 1): ").strip() or "1"
     
     mode_names = {
         "1": "Collaborative Triad (A + B + C)",
         "2": "Agent C (Supervisor)",
-        "3": "Agent A (OpenAI)",
-        "4": "Agent B (Claude)"
+        "3": "Agent A (Laguna)",
+        "4": "Agent B (Nemotron)"
     }
     console.print(f"\n[green]Connected to: [bold]{mode_names.get(choice, 'Collaborative Triad')}[/bold][/green]")
     console.print("[dim]Type your message or prompt below. Type 'exit' or 'quit' to end session.[/dim]\n")
@@ -105,20 +105,20 @@ def main():
                 console.print(Markdown(res["reply"]))
 
             elif choice == "3":
-                # Direct OpenAI Agent A
+                # Direct Laguna Agent A
                 reply, usage = agent_a.chat(user_msg, history)
                 history.append({"role": "user", "content": user_msg})
                 history.append({"role": "assistant", "content": reply})
-                console.print(f"\n[bold green]─── Agent A (OpenAI) ───[/bold green]")
+                console.print(f"\n[bold green]─── Agent A (Laguna) ───[/bold green]")
                 console.print(f"[dim]Tokens: {usage.total_tokens} | Cost: ${usage.cost_usd:.6f}[/dim]")
                 console.print(Markdown(reply))
 
             elif choice == "4":
-                # Direct Claude Agent B
+                # Direct Nemotron Agent B
                 reply, usage = agent_b.chat(user_msg, history)
                 history.append({"role": "user", "content": user_msg})
                 history.append({"role": "assistant", "content": reply})
-                console.print(f"\n[bold magenta]─── Agent B (Claude) ───[/bold magenta]")
+                console.print(f"\n[bold magenta]─── Agent B (Nemotron) ───[/bold magenta]")
                 console.print(f"[dim]Tokens: {usage.total_tokens} | Cost: ${usage.cost_usd:.6f}[/dim]")
                 console.print(Markdown(reply))
 

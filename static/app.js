@@ -8,7 +8,7 @@ const keyOf = (name) => (/Agent ([A-Z])/.exec(name || "") || [, "c"])[1].toLower
 
 const DONE = new Set(["COMPLETED", "MAX_REVISIONS_REACHED", "FAILED"]);
 const STATUS_LABEL = { COMPLETED: "Approved", MAX_REVISIONS_REACHED: "Not approved", FAILED: "Failed" };
-const ROLES = { a: "ChatGPT", b: "Claude", c: "Supervisor" };
+const ROLES = { a: "Laguna", b: "Nemotron", c: "Supervisor" };
 const C_DESCRIPTION =
   "Sends your prompt to every agent at once, scores each answer and gives that agent " +
   "recommendations, logs every step, adds up tokens and cost, and has every agent below the pass score revise.";
@@ -101,7 +101,7 @@ function renderAgents(run, usage = []) {
   }).join("");
 }
 
-// C's own messages name the agents "Agent A (...)", "Agent D (Apodex)"; show them as ChatGPT, Apodex.
+// C's own messages name the agents "Agent A (...)", "Agent D (Apodex)"; show them as Laguna, Apodex.
 // Drafts are left untouched, they are the model's own words.
 const friendly = (text) => text.replace(/Agent ([ABD-Z])(?: \(([^)]*)\))?/g, (m, k, n) => ROLES[k.toLowerCase()] || n || m);
 

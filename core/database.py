@@ -93,6 +93,9 @@ class Database:
         """Save or update agent capability discovery in database."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            # one row per agent letter: drop rows saved under an old label, e.g. "Agent A (ChatGPT)"
+            letter = profile.name.split(" (")[0]
+            cursor.execute("DELETE FROM agents WHERE name LIKE ? AND name != ?", (letter + " (%", profile.name))
             cursor.execute("""
             INSERT INTO agents (name, provider, model, role, capabilities, description, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)

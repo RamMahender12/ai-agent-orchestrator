@@ -12,15 +12,15 @@ except ImportError:
 
 class AgentBClaude(BaseAgent):
     """
-    Agent B: Anthropic Claude Agent.
+    Agent B: NVIDIA Nemotron Agent.
     Answers the task, revises from feedback, and scores Agent A's answer.
     """
     prefer = "anthropic"
 
     def __init__(self, model: str = "nvidia/nemotron-3-ultra-550b-a55b:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent B (Claude)",
-            provider="Anthropic",
+            name="Agent B (Nemotron)",
+            provider="NVIDIA",
             model=model,
             role="Quality Auditor & Critical Evaluator"
         )
@@ -47,11 +47,11 @@ class AgentBClaude(BaseAgent):
                 "Actionable Defect Formulation",
                 "Independent Answer Drafting & Revision"
             ],
-            description="I am an Anthropic Claude agent specializing in critical review and evaluation. I write my own answer to the task, examine Agent A's answer for gaps, edge cases, and architectural weaknesses, then generate rigorous quantitative scores and actionable improvement recommendations."
+            description="I am an NVIDIA Nemotron agent specializing in critical review and evaluation. I write my own answer to the task, examine Agent A's answer for gaps, edge cases, and architectural weaknesses, then generate rigorous quantitative scores and actionable improvement recommendations."
         )
 
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
-        """Interactive conversational interface with Agent B (Claude)."""
+        """Interactive conversational interface with Agent B (Nemotron)."""
         history = history or []
         if not self.simulation_mode:
             try:
@@ -71,7 +71,7 @@ class AgentBClaude(BaseAgent):
             msg_lower = message.lower()
             reply = (
                 f"### Quality Audit & Vulnerability Assessment\n"
-                f"**Auditor:** Agent B (Anthropic {self.model})\n\n"
+                f"**Auditor:** Agent B (Nemotron {self.model})\n\n"
                 f"**Subject:** *\"{message.splitlines()[0][:60]}\"*\n\n"
                 f"#### 1. Critical Risk Breakdown\n"
                 f"• **Single Point of Failure (SPOF):** Ensure redundant failover and avoid reliance on single node instances.\n"

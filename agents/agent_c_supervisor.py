@@ -498,12 +498,12 @@ class AgentCSupervisor:
         """Direct conversational query to Agent C (Supervisor)."""
         if self.agent_a.simulation_mode:
             registered = self.db.get_registered_agents()
-            agents_summary = ", ".join([f"{a['name']} ({a['model']})" for a in registered]) if registered else "Agent A (OpenAI) and Agent B (Claude)"
+            agents_summary = ", ".join([f"{a['name']} ({a['model']})" for a in registered]) if registered else "Agent A (Laguna) and Agent B (Nemotron)"
             reply = (
                 f"Hello! I am Agent C, the Supervisory Meta-Agent. "
                 f"I actively manage: {agents_summary}.\n\n"
                 f"Regarding: '{message}'\n"
-                f"• I have Agent A (OpenAI) and Agent B (Claude) each answer the task.\n"
+                f"• I have Agent A (Laguna) and Agent B (Nemotron) each answer the task.\n"
                 f"• Each agent scores the other's answer from 0 to 100, and I continue with the stronger one.\n"
                 f"• If that score is below threshold, I intervene and command revisions until it passes!\n\n"
                 f"To launch a full self-correcting cycle, send your goal via the Live Orchestration tab or ask me to coordinate both agents."
@@ -524,7 +524,7 @@ class AgentCSupervisor:
                 reply = (
                     f"Hello! I am Agent C, your Supervisory Meta-Orchestrator.\n\n"
                     f"Regarding your query: \"{message}\"\n\n"
-                    f"• I am actively ready to dispatch tasks to **Agent A (ChatGPT)** and **Agent B (Claude)**.\n"
+                    f"• I am actively ready to dispatch tasks to **Agent A (Laguna)** and **Agent B (Nemotron)**.\n"
                     f"• You can test each agent individually or select **Triad Council** to see them collaborate.\n"
                     f"*(Upstream notice: {exc})*"
                 )
@@ -543,7 +543,7 @@ class AgentCSupervisor:
         c_msg = {
             "sender": self.name,
             "role": "Supervisor",
-            "reply": f"Directive received: '{message}'. Delegating initial solution to Agent A (OpenAI), followed by critical audit from Agent B (Claude).",
+            "reply": f"Directive received: '{message}'. Delegating initial solution to Agent A (Laguna), followed by critical audit from Agent B (Nemotron).",
             "tokens": c_usage.model_dump()
         }
 

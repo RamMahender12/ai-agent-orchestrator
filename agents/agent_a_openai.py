@@ -12,15 +12,15 @@ except ImportError:
 
 class AgentAOpenAI(BaseAgent):
     """
-    Agent A: OpenAI Agent (ChatGPT / GPT-4o).
+    Agent A: Laguna Agent (Poolside Laguna S 2.1).
     Answers the task, revises from feedback, and scores Agent B's answer.
     """
     sim_first_score = 74  # differs from B's 68 so the simulated round 1 has a clear winner
 
     def __init__(self, model: str = "poolside/laguna-s-2.1:free", simulation_mode: bool = True):
         super().__init__(
-            name="Agent A (ChatGPT)",
-            provider="OpenAI",
+            name="Agent A (Laguna)",
+            provider="Poolside",
             model=model,
             role="Primary Generator & Technical Creator"
         )
@@ -46,7 +46,7 @@ class AgentAOpenAI(BaseAgent):
                 "Iterative Refinement from Feedback Loops",
                 "Quantitative Quality Scoring (0-100) of Agent B's answer"
             ],
-            description="I am an OpenAI-powered generator. I specialize in drafting solutions, coding architectures, and producing comprehensive proposals. When provided with critiques, I iteratively refine my work. I also score Agent B's answer to the same task."
+            description="I am a Poolside Laguna-powered generator. I specialize in drafting solutions, coding architectures, and producing comprehensive proposals. When provided with critiques, I iteratively refine my work. I also score Agent B's answer to the same task."
         )
 
     def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None) -> Tuple[str, TokenUsage]:
@@ -71,7 +71,7 @@ class AgentAOpenAI(BaseAgent):
             if any(k in msg_lower for k in ["redis", "cache", "lru", "caching"]):
                 reply = (
                     f"### Python In-Memory LRU Cache with TTL Expiration\n"
-                    f"**Author:** Agent A (OpenAI {self.model})\n\n"
+                    f"**Author:** Agent A (Laguna {self.model})\n\n"
                     f"Here is a production-ready asynchronous cache implementation:\n"
                     f"```python\n"
                     f"import time\n"
@@ -107,7 +107,7 @@ class AgentAOpenAI(BaseAgent):
             elif any(k in msg_lower for k in ["india", "location", "city", "place"]):
                 reply = (
                     f"### Geographic & Infrastructure Assessment: India\n"
-                    f"**Evaluated by:** Agent A (OpenAI {self.model})\n\n"
+                    f"**Evaluated by:** Agent A (Laguna {self.model})\n\n"
                     f"Depending on your objective, here are the top strategic locations in India:\n\n"
                     f"#### 1. Tech & Software Engineering Hubs\n"
                     f"• **Bengaluru (Bangalore):** The premier innovation and startup capital, hosting major R&D centers, AI labs, and unicorn tech stacks.\n"
@@ -123,14 +123,14 @@ class AgentAOpenAI(BaseAgent):
             else:
                 reply = (
                     f"### Technical Assessment: {message.splitlines()[0][:60]}\n"
-                    f"**Author:** Agent A (OpenAI {self.model})\n\n"
+                    f"**Author:** Agent A (Laguna {self.model})\n\n"
                     f"Regarding your query: *\"{message}\"*\n\n"
                     f"#### 1. Proposed Implementation Strategy\n"
                     f"• **Architecture:** Modular, loosely-coupled microservices design with asynchronous communication.\n"
                     f"• **Reliability:** Built-in circuit breakers, automatic retries with exponential backoff and jitter.\n"
                     f"• **Observability:** Distributed tracing (OpenTelemetry) and structured JSON logging.\n\n"
                     f"#### 2. Next Steps\n"
-                    f"You can prompt me for specific code implementations (Python, TypeScript, Go), or dispatch this objective through **Supervisor Agent C** so **Claude Agent B** can audit and score it against enterprise benchmarks!"
+                    f"You can prompt me for specific code implementations (Python, TypeScript, Go), or dispatch this objective through **Supervisor Agent C** so **Nemotron Agent B** can audit and score it against enterprise benchmarks!"
                 )
             p_tokens = CostTracker.estimate_tokens_from_text(message) + 50
             c_tokens = CostTracker.estimate_tokens_from_text(reply)

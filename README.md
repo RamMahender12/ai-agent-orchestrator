@@ -1,10 +1,10 @@
 # 🤖 Multi-Agent Orchestrator & Supervisor System
 
-> **Autonomous Multi-Agent Architecture featuring OpenAI (Agent A) and Claude (Agent B) coordinated by a Supervisor Engine (Agent C) with live token cost telemetry, self-correction feedback loops, and SQLite persistence.**
+> **Autonomous Multi-Agent Architecture featuring Poolside Laguna (Agent A) and NVIDIA Nemotron (Agent B) coordinated by a Supervisor Engine (Agent C) with live token cost telemetry, self-correction feedback loops, and SQLite persistence.**
 
 Built to fulfill your client's exact requirements:
-1. **Agent A (OpenAI / ChatGPT / GPT-4o):** Acts as the creator and implementation worker.
-2. **Agent B (Anthropic Claude 3.5 Sonnet):** Acts as the critical quality auditor and logic judge.
+1. **Agent A (Poolside Laguna S 2.1):** Acts as the creator and implementation worker.
+2. **Agent B (NVIDIA Nemotron 3 Ultra):** Acts as the critical quality auditor and logic judge.
 3. **Agent C (Supervisor / "Our Agent"):**
    - Interrogates Agent A and Agent B (*"What do you do?"*) and registers their capabilities in a database.
    - Assigns objectives and continuously monitors step transitions.
@@ -17,8 +17,8 @@ Built to fulfill your client's exact requirements:
 ## 🌟 Key Features
 
 - **Dedicated 3-Screen Architecture:**
-  - **Screen A (OpenAI GPT-4o):** Dedicated workspace for generation, technical drafting, code, and revisions.
-  - **Screen B (Claude 3.5 Sonnet):** Dedicated workspace for auditing, quantitative scoring (0-100), and security checks.
+  - **Screen A (Laguna):** Dedicated workspace for generation, technical drafting, code, and revisions.
+  - **Screen B (Nemotron):** Dedicated workspace for auditing, quantitative scoring (0-100), and security checks.
   - **Screen C (Supervisor / Our Agent):** Dedicated command center for capability discovery, inter-agent coordination, token telemetry, and self-correction directives ("tell A to do better").
   - **Panoramic 3-Screen Split View:** Allows monitoring all three screens simultaneously in real time.
 - **Dual-Mode Execution:**
@@ -44,8 +44,8 @@ ai-agent-orchestrator/
 │   └── app.js                 # Real-time SSE stream & multi-screen routing logic
 ├── agents/
 │   ├── base_agent.py          # Abstract Agent interface
-│   ├── agent_a_openai.py      # Agent A (OpenAI generator with revision engine)
-│   ├── agent_b_claude.py      # Agent B (Claude auditor with scoring 0-100)
+│   ├── agent_a_openai.py      # Agent A (Laguna generator with revision engine)
+│   ├── agent_b_claude.py      # Agent B (Nemotron auditor with scoring 0-100)
 │   └── agent_c_supervisor.py  # Agent C (Supervisor directing A & B)
 ├── core/
 │   ├── database.py            # SQLite engine (agents, runs, steps, evaluations)
@@ -68,8 +68,8 @@ From the project folder:
 Open your browser to: **[http://localhost:8000](http://localhost:8000)**
 
 You now have **three dedicated screens**:
-- **🟢 Screen A (OpenAI):** Send prompts directly to OpenAI GPT-4o, test code architectures, and inspect its drafts and revisions.
-- **🟣 Screen B (Claude):** Send prompts directly to Claude 3.5 Sonnet, ask for security reviews, and inspect quality scorecards.
+- **🟢 Screen A (Laguna):** Send prompts directly to Poolside Laguna, test code architectures, and inspect its drafts and revisions.
+- **🟣 Screen B (Nemotron):** Send prompts directly to NVIDIA Nemotron, ask for security reviews, and inspect quality scorecards.
 - **🤖 Screen C (Supervisor):** Coordinate both agents, launch multi-agent workflows, and command revisions when Agent A's work falls below standard.
 - **⚡ 3-Screen Split View:** View all three screens running simultaneously side-by-side in real time!
 
@@ -86,8 +86,8 @@ You have two ways to chat back-and-forth with the agents:
 3. Select whom to chat with:
    - **🌐 Collaborative Triad (A + B + C):** Agent C receives your prompt, coordinates, Agent A drafts, and Agent B reviews.
    - **🤖 Agent C (Supervisor):** Ask questions about agent capabilities, monitoring, or token costs.
-   - **🟢 Agent A (OpenAI):** Direct conversation with OpenAI GPT-4o.
-   - **🟣 Agent B (Claude):** Direct conversation with Claude 3.5 Sonnet for auditing and critique.
+   - **🟢 Agent A (Laguna):** Direct conversation with Poolside Laguna.
+   - **🟣 Agent B (Nemotron):** Direct conversation with NVIDIA Nemotron for auditing and critique.
 4. Type your message and hit Enter or click **Send Prompt**!
 
 #### Option B: Terminal Chat CLI
@@ -132,8 +132,8 @@ Clients use [Agent2Agent](https://a2a-protocol.org) JSON-RPC 2.0. Agent C is the
 | Agent | Card | RPC |
 | --- | --- | --- |
 | C supervisor | `GET /.well-known/agent-card.json` | `POST /a2a/c` |
-| A OpenAI | `GET /a2a/a/.well-known/agent-card.json` | `POST /a2a/a` |
-| B Claude | `GET /a2a/b/.well-known/agent-card.json` | `POST /a2a/b` |
+| A Laguna | `GET /a2a/a/.well-known/agent-card.json` | `POST /a2a/a` |
+| B Nemotron | `GET /a2a/b/.well-known/agent-card.json` | `POST /a2a/b` |
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"role":"user","messageId":"m1","metadata":{"skill":"orchestrate"},"parts":[{"kind":"text","text":"Build a rate limiter"}]}}}
@@ -146,4 +146,4 @@ Clients use [Agent2Agent](https://a2a-protocol.org) JSON-RPC 2.0. Agent C is the
 1. **`agents`**: Registry of discovered agent capabilities, provider, and model.
 2. **`runs`**: Execution sessions, objective task, total tokens, total cost (USD), status.
 3. **`steps`**: Granular log of every inter-agent communication, sender, receiver, action, prompt/completion tokens, and USD cost.
-4. **`evaluations`**: Claude audit results, scores (0-100), identified flaws, and feedback sent to Agent C.
+4. **`evaluations`**: Audit results, scores (0-100), identified flaws, and feedback sent to Agent C.

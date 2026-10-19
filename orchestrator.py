@@ -41,7 +41,7 @@ SAMPLE_TASKS = [
 def print_banner():
     console.print(Panel.fit(
         "[bold cyan]AI Agent Supervisor & Multi-Agent Orchestration System[/bold cyan]\n"
-        "[dim]Agent A (OpenAI) + Agent B (Claude) orchestrated by Agent C (Supervisor)[/dim]",
+        "[dim]Agent A (Laguna) + Agent B (Nemotron) orchestrated by Agent C (Supervisor)[/dim]",
         border_style="cyan"
     ))
 
@@ -49,8 +49,8 @@ def main():
     parser = argparse.ArgumentParser(description="Multi-Agent Orchestrator CLI")
     parser.add_argument("--task", type=str, help="The task for the agents to accomplish")
     parser.add_argument("--live", action="store_true", help="Force Live API mode (requires API keys in .env)")
-    parser.add_argument("--model-a", type=str, default=os.getenv("AGENT_A_MODEL", "gpt-4o"), help="OpenAI Model for Agent A")
-    parser.add_argument("--model-b", type=str, default=os.getenv("AGENT_B_MODEL", "claude-3-5-sonnet-20241022"), help="Claude Model for Agent B")
+    parser.add_argument("--model-a", type=str, default=os.getenv("AGENT_A_MODEL", "poolside/laguna-s-2.1:free"), help="Model for Agent A (Laguna)")
+    parser.add_argument("--model-b", type=str, default=os.getenv("AGENT_B_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free"), help="Model for Agent B (Nemotron)")
     parser.add_argument("--threshold", type=int, default=int(os.getenv("QUALITY_THRESHOLD", 80)), help="Quality pass score (0-100)")
     args = parser.parse_args()
 
