@@ -11,8 +11,8 @@ from core.models import (
 )
 from core.database import Database
 from core.cost_tracker import CostTracker
-from agents.agent_a_openai import AgentAOpenAI
-from agents.agent_b_claude import AgentBClaude
+from agents.agent_a_laguna import AgentALaguna
+from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_free import free_agents
 from agents.base_agent import BaseAgent
 from core.a2a import card_for, router as a2a_router, task_text
@@ -28,8 +28,8 @@ class AgentCSupervisor:
     """
     def __init__(
         self,
-        agent_a: Optional[AgentAOpenAI] = None,
-        agent_b: Optional[AgentBClaude] = None,
+        agent_a: Optional[AgentALaguna] = None,
+        agent_b: Optional[AgentBNemotron] = None,
         database: Optional[Database] = None,
         quality_threshold: int = 80,
         max_revisions: int = 3,
@@ -38,8 +38,8 @@ class AgentCSupervisor:
         self.name = "Agent C (Supervisor)"
         self.provider = "Orchestration-Core"
         self.model = "supervisor-engine"
-        self.agent_a = agent_a or AgentAOpenAI()
-        self.agent_b = agent_b or AgentBClaude()
+        self.agent_a = agent_a or AgentALaguna()
+        self.agent_b = agent_b or AgentBNemotron()
         # free-model workers; default to the FREE_MODELS list, in the same simulation mode as A
         self.extra_agents = free_agents(self.agent_a.simulation_mode) if extra_agents is None else extra_agents
         self.db = database or Database()

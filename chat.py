@@ -18,8 +18,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from core.database import Database
-from agents.agent_a_openai import AgentAOpenAI
-from agents.agent_b_claude import AgentBClaude
+from agents.agent_a_laguna import AgentALaguna
+from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_supervisor import AgentCSupervisor
 
 console = Console(force_terminal=True, legacy_windows=False)
@@ -42,8 +42,8 @@ def main():
         console.print("[green]Running in LIVE API Mode with OpenAI & Claude keys![/green]\n")
 
     db = Database()
-    agent_a = AgentAOpenAI(simulation_mode=sim_mode)
-    agent_b = AgentBClaude(simulation_mode=sim_mode)
+    agent_a = AgentALaguna(simulation_mode=sim_mode)
+    agent_b = AgentBNemotron(simulation_mode=sim_mode)
     supervisor = AgentCSupervisor(agent_a=agent_a, agent_b=agent_b, database=db)
 
     console.print("[bold yellow]Choose whom you want to chat with:[/bold yellow]")

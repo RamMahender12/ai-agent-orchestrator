@@ -25,8 +25,8 @@ from rich.markdown import Markdown
 
 from core.database import Database
 from core.models import OrchestrationRun
-from agents.agent_a_openai import AgentAOpenAI
-from agents.agent_b_claude import AgentBClaude
+from agents.agent_a_laguna import AgentALaguna
+from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_supervisor import AgentCSupervisor
 
 console = Console(force_terminal=True, legacy_windows=False)
@@ -89,8 +89,8 @@ def main():
 
     # Initialize components
     db = Database()
-    agent_a = AgentAOpenAI(model=args.model_a, simulation_mode=simulation_mode)
-    agent_b = AgentBClaude(model=args.model_b, simulation_mode=simulation_mode)
+    agent_a = AgentALaguna(model=args.model_a, simulation_mode=simulation_mode)
+    agent_b = AgentBNemotron(model=args.model_b, simulation_mode=simulation_mode)
     supervisor = AgentCSupervisor(
         agent_a=agent_a,
         agent_b=agent_b,

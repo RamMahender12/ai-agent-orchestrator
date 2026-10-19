@@ -10,7 +10,7 @@ try:
 except ImportError:
     OpenAI = None
 
-class AgentAOpenAI(BaseAgent):
+class AgentALaguna(BaseAgent):
     """
     Agent A: Laguna Agent (Poolside Laguna S 2.1).
     Answers the task, revises from feedback, and scores Agent B's answer.

@@ -44,8 +44,8 @@ ai-agent-orchestrator/
 │   └── app.js                 # Real-time SSE stream & multi-screen routing logic
 ├── agents/
 │   ├── base_agent.py          # Abstract Agent interface
-│   ├── agent_a_openai.py      # Agent A (Laguna generator with revision engine)
-│   ├── agent_b_claude.py      # Agent B (Nemotron auditor with scoring 0-100)
+│   ├── agent_a_laguna.py      # Agent A (Laguna generator with revision engine)
+│   ├── agent_b_nemotron.py    # Agent B (Nemotron auditor with scoring 0-100)
 │   └── agent_c_supervisor.py  # Agent C (Supervisor directing A & B)
 ├── core/
 │   ├── database.py            # SQLite engine (agents, runs, steps, evaluations)

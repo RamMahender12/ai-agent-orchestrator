@@ -10,7 +10,7 @@ try:
 except ImportError:
     anthropic = None
 
-class AgentBClaude(BaseAgent):
+class AgentBNemotron(BaseAgent):
     """
     Agent B: NVIDIA Nemotron Agent.
     Answers the task, revises from feedback, and scores Agent A's answer.
