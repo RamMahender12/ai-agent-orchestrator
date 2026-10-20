@@ -20,14 +20,14 @@ from rich.markdown import Markdown
 from core.database import Database
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
-from agents.agent_c_supervisor import AgentCSupervisor
+from agents.agent_c_captain import AgentCCaptain
 
 console = Console(force_terminal=True, legacy_windows=False)
 
 def main():
     console.print(Panel.fit(
         "[bold cyan]AI Agent Interactive Chat Room[/bold cyan]\n"
-        "[dim]Chat directly with Laguna (A), Nemotron (B), Supervisor (C), or Collaborative Triad[/dim]",
+        "[dim]Chat directly with Laguna (A), Nemotron (B), Captain (C), or Collaborative Triad[/dim]",
         border_style="cyan"
     ))
 
@@ -44,11 +44,11 @@ def main():
     db = Database()
     agent_a = AgentALaguna(simulation_mode=sim_mode)
     agent_b = AgentBNemotron(simulation_mode=sim_mode)
-    supervisor = AgentCSupervisor(agent_a=agent_a, agent_b=agent_b, database=db)
+    captain = AgentCCaptain(agent_a=agent_a, agent_b=agent_b, database=db)
 
     console.print("[bold yellow]Choose whom you want to chat with:[/bold yellow]")
-    console.print("  [cyan]1[/cyan]. [bold]Collaborative Triad[/bold] (Supervisor C coordinates, Agent A drafts, Agent B critiques)")
-    console.print("  [cyan]2[/cyan]. [bold]Agent C (Supervisor)[/bold] - Meta-orchestrator directing workflow")
+    console.print("  [cyan]1[/cyan]. [bold]Collaborative Triad[/bold] (Captain C coordinates, Agent A drafts, Agent B critiques)")
+    console.print("  [cyan]2[/cyan]. [bold]Agent C (Captain)[/bold] - Meta-orchestrator directing workflow")
     console.print("  [cyan]3[/cyan]. [bold]Agent A (Laguna)[/bold] - Creator & software engineer")
     console.print("  [cyan]4[/cyan]. [bold]Agent B (Nemotron)[/bold] - Quality auditor & security evaluator")
     
@@ -56,7 +56,7 @@ def main():
     
     mode_names = {
         "1": "Collaborative Triad (A + B + C)",
-        "2": "Agent C (Supervisor)",
+        "2": "Agent C (Captain)",
         "3": "Agent A (Laguna)",
         "4": "Agent B (Nemotron)"
     }
@@ -76,8 +76,8 @@ def main():
 
             if choice == "1":
                 # Triad collaborative
-                console.print("\n[magenta]>> Supervisor coordinating Triad response...[/magenta]")
-                responses = supervisor.triad_chat(user_msg)
+                console.print("\n[magenta]>> Captain coordinating Triad response...[/magenta]")
+                responses = captain.triad_chat(user_msg)
                 for r in responses:
                     sender = r["sender"]
                     role = r["role"]
@@ -97,10 +97,10 @@ def main():
                     console.print(Markdown(reply))
 
             elif choice == "2":
-                # Direct Supervisor
-                res = supervisor.chat(user_msg)
+                # Direct Captain
+                res = captain.chat(user_msg)
                 tokens = res.get("tokens", {})
-                console.print(f"\n[bold blue]─── Agent C (Supervisor) ───[/bold blue]")
+                console.print(f"\n[bold blue]─── Agent C (Captain) ───[/bold blue]")
                 console.print(f"[dim]Tokens: {tokens.get('total_tokens', 0)} | Cost: ${tokens.get('cost_usd', 0.0):.6f}[/dim]")
                 console.print(Markdown(res["reply"]))
 

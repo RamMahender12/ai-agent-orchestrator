@@ -21,11 +21,11 @@ from core.database import Database
 from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
-from agents.agent_c_supervisor import AgentCSupervisor
+from agents.agent_c_captain import AgentCCaptain
 from core import a2a as a2a_proto
 from core.llm import HELP, _key, has_api_key
 
-app = FastAPI(title="AI Agent Supervisor & Multi-Agent Orchestrator", version="1.0.0")
+app = FastAPI(title="AI Agent Captain & Multi-Agent Orchestrator", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,8 +44,8 @@ async def add_no_cache_headers(request, call_next):
     return response
 
 db = Database()
-_supervisor = AgentCSupervisor(database=db)
-_supervisor.bind_a2a()
+_captain = AgentCCaptain(database=db)
+_captain.bind_a2a()
 
 # Active SSE subscriber queues keyed by run_id
 run_queues: Dict[str, List[asyncio.Queue]] = {}
@@ -68,7 +68,7 @@ async def health_check():
     }
 
 class ChatRequest(BaseModel):
-    agent_target: str = "supervisor"  # "supervisor", "agent_a", "agent_b", "triad"
+    agent_target: str = "captain"  # "captain", "agent_a", "agent_b", "triad"
     message: str
     simulation_mode: Optional[bool] = False
     history: Optional[List[Dict[str, str]]] = None
@@ -84,7 +84,7 @@ async def chat_with_agents(req: ChatRequest):
 
     agent_a = AgentALaguna(simulation_mode=sim_mode)
     agent_b = AgentBNemotron(simulation_mode=sim_mode)
-    supervisor = AgentCSupervisor(agent_a=agent_a, agent_b=agent_b, database=db)
+    captain = AgentCCaptain(agent_a=agent_a, agent_b=agent_b, database=db)
 
     target = req.agent_target.lower()
 
@@ -111,10 +111,10 @@ async def chat_with_agents(req: ChatRequest):
             }]
         }
     elif target in ["triad", "all"]:
-        responses = supervisor.triad_chat(req.message)
+        responses = captain.triad_chat(req.message)
         return {"responses": responses}
-    else:  # default supervisor
-        resp = supervisor.chat(req.message)
+    else:  # default captain
+        resp = captain.chat(req.message)
         return {"responses": [resp]}
 
 
@@ -206,7 +206,7 @@ async def execute_orchestration_background(
     # Initialize agents
     agent_a = AgentALaguna(model=model_a, simulation_mode=simulation_mode)
     agent_b = AgentBNemotron(model=model_b, simulation_mode=simulation_mode)
-    supervisor = AgentCSupervisor(
+    captain = AgentCCaptain(
         agent_a=agent_a,
         agent_b=agent_b,
         database=db,
@@ -214,13 +214,13 @@ async def execute_orchestration_background(
         max_revisions=3
     )
 
-    # Wrap the synchronous supervisor workflow
+    # Wrap the synchronous captain workflow
     await asyncio.sleep(0.4)
-    # Patch supervisor to reuse pre-allocated run_id
-    supervisor_run_method = supervisor.run_workflow
+    # Patch captain to reuse pre-allocated run_id
+    captain_run_method = captain.run_workflow
     
     def run_with_id():
-        return supervisor_run_method(task, event_callback=dispatch_event, run_id=run_id)
+        return captain_run_method(task, event_callback=dispatch_event, run_id=run_id)
 
 
     try:
@@ -271,7 +271,7 @@ async def stream_run_events(run_id: str):
 
 @app.get("/.well-known/agent-card.json")
 async def root_agent_card(request: Request):
-    """A2A agent card for Agent C, the client-facing supervisor."""
+    """A2A agent card for Agent C, the client-facing captain."""
     return a2a_proto.router.public_card("c", str(request.base_url))
 
 

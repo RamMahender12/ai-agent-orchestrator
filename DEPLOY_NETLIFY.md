@@ -33,7 +33,7 @@ Open PowerShell in the project folder:
 cd C:\Users\ramma\OneDrive\Desktop\Projects\ai-agent-orchestrator
 git init
 git add .
-git commit -m "Initial commit: Agent Nexus Multi-Agent Supervisor"
+git commit -m "Initial commit: Agent Nexus Multi-Agent Captain"
 git branch -M main
 ```
 Create a new repository on [GitHub](https://github.com/new) (e.g. `ai-agent-orchestrator`), then link and push:

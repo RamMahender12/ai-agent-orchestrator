@@ -1,11 +1,11 @@
-# 🤖 Multi-Agent Orchestrator & Supervisor System
+# 🤖 Multi-Agent Orchestrator & Captain System
 
-> **Autonomous Multi-Agent Architecture featuring Poolside Laguna (Agent A) and NVIDIA Nemotron (Agent B) coordinated by a Supervisor Engine (Agent C) with live token cost telemetry, self-correction feedback loops, and SQLite persistence.**
+> **Autonomous Multi-Agent Architecture featuring Poolside Laguna (Agent A) and NVIDIA Nemotron (Agent B) coordinated by a Captain Engine (Agent C) with live token cost telemetry, self-correction feedback loops, and SQLite persistence.**
 
 Built to fulfill your client's exact requirements:
 1. **Agent A (Poolside Laguna S 2.1):** Acts as the creator and implementation worker.
 2. **Agent B (NVIDIA Nemotron 3 Ultra):** Acts as the critical quality auditor and logic judge.
-3. **Agent C (Supervisor / "Our Agent"):**
+3. **Agent C (Captain / "Our Agent"):**
    - Interrogates Agent A and Agent B (*"What do you do?"*) and registers their capabilities in a database.
    - Assigns objectives and continuously monitors step transitions.
    - Calculates exact token consumption and USD costs for OpenAI, Claude, and internal operations.
@@ -19,10 +19,10 @@ Built to fulfill your client's exact requirements:
 - **Dedicated 3-Screen Architecture:**
   - **Screen A (Laguna):** Dedicated workspace for generation, technical drafting, code, and revisions.
   - **Screen B (Nemotron):** Dedicated workspace for auditing, quantitative scoring (0-100), and security checks.
-  - **Screen C (Supervisor / Our Agent):** Dedicated command center for capability discovery, inter-agent coordination, token telemetry, and self-correction directives ("tell A to do better").
+  - **Screen C (Captain / Our Agent):** Dedicated command center for capability discovery, inter-agent coordination, token telemetry, and self-correction directives ("tell A to do better").
   - **Panoramic 3-Screen Split View:** Allows monitoring all three screens simultaneously in real time.
 - **Dual-Mode Execution:**
-  - **Simulation Mode (Default):** Ready out of the box with zero setup or API costs. Accurately simulates the discovery, initial draft, flaw detection, supervisor intervention, and refined revision.
+  - **Simulation Mode (Default):** Ready out of the box with zero setup or API costs. Accurately simulates the discovery, initial draft, flaw detection, captain intervention, and refined revision.
   - **Live API Mode:** Connects to official OpenAI and Anthropic SDKs via `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`.
 - **Live Glassmorphic Web Dashboard:** Real-time visual control room with interactive agent state cards, SSE telemetry streaming, token gauges, and SQLite inspector.
 - **Rich Terminal CLI:** Color-coded terminal runner with styled tables and progress spinners (`orchestrator.py` & `chat.py`).
@@ -46,7 +46,7 @@ ai-agent-orchestrator/
 │   ├── base_agent.py          # Abstract Agent interface
 │   ├── agent_a_laguna.py      # Agent A (Laguna generator with revision engine)
 │   ├── agent_b_nemotron.py    # Agent B (Nemotron auditor with scoring 0-100)
-│   └── agent_c_supervisor.py  # Agent C (Supervisor directing A & B)
+│   └── agent_c_captain.py  # Agent C (Captain directing A & B)
 ├── core/
 │   ├── database.py            # SQLite engine (agents, runs, steps, evaluations)
 │   ├── cost_tracker.py        # Token math & USD cost pricing matrix
@@ -70,7 +70,7 @@ Open your browser to: **[http://localhost:8000](http://localhost:8000)**
 You now have **three dedicated screens**:
 - **🟢 Screen A (Laguna):** Send prompts directly to Poolside Laguna, test code architectures, and inspect its drafts and revisions.
 - **🟣 Screen B (Nemotron):** Send prompts directly to NVIDIA Nemotron, ask for security reviews, and inspect quality scorecards.
-- **🤖 Screen C (Supervisor):** Coordinate both agents, launch multi-agent workflows, and command revisions when Agent A's work falls below standard.
+- **🤖 Screen C (Captain):** Coordinate both agents, launch multi-agent workflows, and command revisions when Agent A's work falls below standard.
 - **⚡ 3-Screen Split View:** View all three screens running simultaneously side-by-side in real time!
 
 
@@ -85,7 +85,7 @@ You have two ways to chat back-and-forth with the agents:
 2. Click on the **"💬 Interactive Chat Room"** tab.
 3. Select whom to chat with:
    - **🌐 Collaborative Triad (A + B + C):** Agent C receives your prompt, coordinates, Agent A drafts, and Agent B reviews.
-   - **🤖 Agent C (Supervisor):** Ask questions about agent capabilities, monitoring, or token costs.
+   - **🤖 Agent C (Captain):** Ask questions about agent capabilities, monitoring, or token costs.
    - **🟢 Agent A (Laguna):** Direct conversation with Poolside Laguna.
    - **🟣 Agent B (Nemotron):** Direct conversation with NVIDIA Nemotron for auditing and critique.
 4. Type your message and hit Enter or click **Send Prompt**!
@@ -131,7 +131,7 @@ Clients use [Agent2Agent](https://a2a-protocol.org) JSON-RPC 2.0. Agent C is the
 
 | Agent | Card | RPC |
 | --- | --- | --- |
-| C supervisor | `GET /.well-known/agent-card.json` | `POST /a2a/c` |
+| C captain | `GET /.well-known/agent-card.json` | `POST /a2a/c` |
 | A Laguna | `GET /a2a/a/.well-known/agent-card.json` | `POST /a2a/a` |
 | B Nemotron | `GET /a2a/b/.well-known/agent-card.json` | `POST /a2a/b` |
 

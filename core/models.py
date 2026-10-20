@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 class AgentProfile(BaseModel):
     name: str
-    provider: str  # "OpenAI", "Anthropic", "Supervisor-Engine"
+    provider: str  # "OpenAI", "Anthropic", "Captain-Engine"
     model: str
     role: str
     capabilities: List[str]

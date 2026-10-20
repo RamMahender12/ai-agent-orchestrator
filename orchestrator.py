@@ -27,7 +27,7 @@ from core.database import Database
 from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
-from agents.agent_c_supervisor import AgentCSupervisor
+from agents.agent_c_captain import AgentCCaptain
 
 console = Console(force_terminal=True, legacy_windows=False)
 
@@ -40,8 +40,8 @@ SAMPLE_TASKS = [
 
 def print_banner():
     console.print(Panel.fit(
-        "[bold cyan]AI Agent Supervisor & Multi-Agent Orchestration System[/bold cyan]\n"
-        "[dim]Agent A (Laguna) + Agent B (Nemotron) orchestrated by Agent C (Supervisor)[/dim]",
+        "[bold cyan]AI Agent Captain & Multi-Agent Orchestration System[/bold cyan]\n"
+        "[dim]Agent A (Laguna) + Agent B (Nemotron) orchestrated by Agent C (Captain)[/dim]",
         border_style="cyan"
     ))
 
@@ -91,7 +91,7 @@ def main():
     db = Database()
     agent_a = AgentALaguna(model=args.model_a, simulation_mode=simulation_mode)
     agent_b = AgentBNemotron(model=args.model_b, simulation_mode=simulation_mode)
-    supervisor = AgentCSupervisor(
+    captain = AgentCCaptain(
         agent_a=agent_a,
         agent_b=agent_b,
         database=db,
@@ -127,13 +127,13 @@ def main():
             console.print(f"[bold red][x] {data['agent']} failed:[/bold red] {data['error']}")
         elif event_type == "winner_selected":
             scores = ", ".join(f"{name} {score}/100" for name, score in data["scores"].items())
-            console.print(f"\n[bold cyan]>> Supervisor picks {data['winner']}'s answer[/bold cyan] ({scores})")
-        elif event_type == "supervisor_intervention":
+            console.print(f"\n[bold cyan]>> Captain picks {data['winner']}'s answer[/bold cyan] ({scores})")
+        elif event_type == "captain_intervention":
             console.print(Panel(
-                f"[bold red]Supervisor Intervention Triggered:[/bold red]\n"
+                f"[bold red]Captain Intervention Triggered:[/bold red]\n"
                 f"{data['agent']}'s work did not meet threshold ({data['score']}/{args.threshold}).\n"
-                f"[bold cyan]Action:[/bold cyan] Supervisor commanding {data['agent']} to execute Revision {data['revision'] + 1} addressing all feedback.",
-                title="Agent C (Supervisor)",
+                f"[bold cyan]Action:[/bold cyan] Captain commanding {data['agent']} to execute Revision {data['revision'] + 1} addressing all feedback.",
+                title="Agent C (Captain)",
                 border_style="red"
             ))
         elif event_type == "workflow_completed":
@@ -147,7 +147,7 @@ def main():
         transient=True
     ) as progress:
         progress.add_task(description="Orchestrating agents...", total=None)
-        run = supervisor.run_workflow(task, event_callback=on_event)
+        run = captain.run_workflow(task, event_callback=on_event)
 
     # Display telemetry summary table
     summary_table = Table(title=f"Telemetry & Telemetry Breakdown (Run ID: {run.run_id})")

@@ -296,7 +296,7 @@ class Database:
                        ROUND(100.0 * AVG(json_extract(metadata, '$.evaluation.passed')), 1) AS pass_rate,
                        ROUND(100.0 * AVG(CASE WHEN json_extract(metadata, '$.evaluation.revision') = 1
                              THEN json_extract(metadata, '$.evaluation.passed') END), 1) AS first_try
-                FROM steps WHERE action IN ('SUPERVISOR_RECOMMENDATIONS', 'AUDIT_VERDICT') AND p IN ({marks})
+                FROM steps WHERE action IN ('CAPTAIN_RECOMMENDATIONS', 'SUPERVISOR_RECOMMENDATIONS', 'AUDIT_VERDICT') AND p IN ({marks})
                 GROUP BY p, agent HAVING agent IS NOT NULL""", (fmt, *periods)):
                 row(r["p"], r["agent"]).update(answers_reviewed=r["n"], avg_score=r["avg_score"], best_score=r["best_score"],
                                               pass_rate=r["pass_rate"], first_try_pass_rate=r["first_try"])

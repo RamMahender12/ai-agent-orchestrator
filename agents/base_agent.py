@@ -19,7 +19,7 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def get_profile(self) -> AgentProfile:
-        """Returns the capabilities and role of the agent when asked by the supervisor."""
+        """Returns the capabilities and role of the agent when asked by the captain."""
         pass
 
     @abstractmethod
@@ -49,7 +49,7 @@ class BaseAgent(ABC):
             if previous:
                 user_prompt += f"\nYOUR REVISION {revision - 1}:\n{previous}\n"
             user_prompt += (
-                f"\nSUPERVISOR RECOMMENDATIONS FOR REVISION {revision - 1}:\n"
+                f"\nCAPTAIN RECOMMENDATIONS FOR REVISION {revision - 1}:\n"
                 f"{feedback}\n"
                 "Apply every recommendation and generate an enhanced revision."
             )
@@ -85,10 +85,10 @@ We propose implementing a modular, distributed architecture tailored to address:
             content = f"""### Enhanced Production-Ready Blueprint: {task.splitlines()[0][:60]}
 **Author:** {self.name} ({self.model})
 **Status:** Revised Specification (Revision {revision})
-**Changelog:** Applied the Supervisor's recommendations.
+**Changelog:** Applied the Captain's recommendations.
 
 #### 1. Executive Summary & Objective Alignment
-This revised architecture explicitly applies the supervisor's recommendations, establishing an enterprise-grade solution for:
+This revised architecture explicitly applies the captain's recommendations, establishing an enterprise-grade solution for:
 > *"{task}"*
 
 #### 2. Concrete Architectural Specifications

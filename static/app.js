@@ -8,7 +8,7 @@ const keyOf = (name) => (/Agent ([A-Z])/.exec(name || "") || [, "c"])[1].toLower
 
 const DONE = new Set(["COMPLETED", "MAX_REVISIONS_REACHED", "FAILED"]);
 const STATUS_LABEL = { COMPLETED: "Approved", MAX_REVISIONS_REACHED: "Not approved", FAILED: "Failed" };
-const ROLES = { a: "Laguna", b: "Nemotron", c: "Supervisor" };
+const ROLES = { a: "Laguna", b: "Nemotron", c: "Captain" };
 const C_DESCRIPTION =
   "Sends your prompt to every agent at once, scores each answer and gives that agent " +
   "recommendations, logs every step, adds up tokens and cost, and has every agent below the pass score revise.";
@@ -23,7 +23,7 @@ const STEP_TITLE = {
   DRAFT_SUBMISSION: (s) => `${who(s.sender)} wrote its answer`,
   REVISED_DRAFT: (s) => `${who(s.sender)} wrote a revised answer`,
   AUDIT_VERDICT: (s) => `${who(s.sender)} scored ${rival(s.sender)}'s answer`,
-  SUPERVISOR_RECOMMENDATIONS: (s) => `C scored ${who(s.receiver)}'s answer and gave recommendations`,
+  CAPTAIN_RECOMMENDATIONS: (s) => `C scored ${who(s.receiver)}'s answer and gave recommendations`,
   WINNER_SELECTED: () => "C picked the strongest answer",
   AGENT_FAILED: (s) => `${who(s.sender)} failed`,
   REVISE_DIRECTIVE: (s) => `C told ${who(s.receiver)} to do it better`,
@@ -50,11 +50,11 @@ function liveText(run) {
   const attempt = run.revisions_count;
   const k = workingAgent(run.status);
   if (k === "all") return attempt > 1 ? `Agents below the pass score are rewriting their answers (attempt ${attempt})` : "Every agent is writing its answer";
-  if (run.status.endsWith("REVIEW_ALL")) return `Supervisor is reviewing every answer (attempt ${attempt})`;
+  if (run.status.endsWith("REVIEW_ALL")) return `Captain is reviewing every answer (attempt ${attempt})`;
   if (run.status.includes("GENERATION")) return attempt > 1 ? `${ROLES[k]} is rewriting its answer (attempt ${attempt})` : `${ROLES[k]} is writing its answer`;
-  if (run.status.includes("REVIEW")) return `Supervisor is reviewing ${ROLES[run.status.slice(-1).toLowerCase()]}'s attempt ${attempt}`;
+  if (run.status.includes("REVIEW")) return `Captain is reviewing ${ROLES[run.status.slice(-1).toLowerCase()]}'s attempt ${attempt}`;
   if (run.status.includes("AUDIT")) return `${ROLES[k]} is scoring ${ROLES[k === "a" ? "b" : "a"]}'s attempt ${attempt}`;
-  return "Supervisor C is sending the task to every agent";
+  return "Captain C is sending the task to every agent";
 }
 
 async function api(path, options) {

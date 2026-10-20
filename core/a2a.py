@@ -18,7 +18,7 @@ _LOG_LOCK = threading.Lock()  # C calls the workers from several threads at once
 ALIASES = {
     "a": "a", "openai": "a", "agent_a": "a",
     "b": "b", "claude": "b", "agent_b": "b",
-    "c": "c", "supervisor": "c", "agent_c": "c",
+    "c": "c", "captain": "c", "supervisor": "c", "agent_c": "c",
 }
 
 
@@ -268,7 +268,7 @@ def demo():
 
     import tempfile
     from core.database import Database
-    from agents.agent_c_supervisor import AgentCSupervisor
+    from agents.agent_c_captain import AgentCCaptain
 
     from agents.agent_free import FreeAgent
 
@@ -277,15 +277,15 @@ def demo():
             raise RuntimeError("rate limited")
 
     db = Database(Path(tempfile.mkdtemp()) / "t.db")
-    supervisor = AgentCSupervisor(database=db, max_revisions=2, extra_agents=[
+    captain = AgentCCaptain(database=db, max_revisions=2, extra_agents=[
         FreeAgent("D", "Probe", "probe-model"), Broken("E", "Broken", "broken-model"),
     ])
-    run = supervisor.run_workflow("Build a rate limiter")
+    run = captain.run_workflow("Build a rate limiter")
     assert run.status == "COMPLETED", run.status
     assert run.revisions_count == 2
     # C scores A, B, D in round 1, they all revise, C re-scores them; E fails and is left out
     assert [e.score for e in run.evaluations] == [70, 70, 70, 93, 93, 93], run.evaluations
-    assert all(e.reviewer == supervisor.name for e in run.evaluations)
+    assert all(e.reviewer == captain.name for e in run.evaluations)
     assert [s.sender for s in run.steps if s.action == "AGENT_FAILED"] == ["Agent E (Broken)"]
     assert "Agent A" in run.final_output and "Revision 2" in run.final_output
     assert run.total_cost_usd > 0

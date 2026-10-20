@@ -81,7 +81,7 @@ class AgentBNemotron(BaseAgent):
                 f"• **Availability SLA:** 99.99% uptime with < 5s automatic failover.\n"
                 f"• **Latency Targets:** P95 < 25ms, P99 < 80ms under peak 5,000 TPS load.\n\n"
                 f"#### 3. Auditor Recommendation\n"
-                f"Have **Agent A** draft the technical implementation, and I will perform an automated 0-100 quality score and verification cycle under **Supervisor Agent C**."
+                f"Have **Agent A** draft the technical implementation, and I will perform an automated 0-100 quality score and verification cycle under **Captain Agent C**."
             )
             p_tokens = CostTracker.estimate_tokens_from_text(message) + 55
             c_tokens = CostTracker.estimate_tokens_from_text(reply)

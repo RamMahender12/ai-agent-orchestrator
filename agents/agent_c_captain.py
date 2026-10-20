@@ -17,9 +17,9 @@ from agents.agent_free import free_agents
 from agents.base_agent import BaseAgent
 from core.a2a import card_for, router as a2a_router, task_text
 
-class AgentCSupervisor:
+class AgentCCaptain:
     """
-    Agent C: Meta-Orchestrator & Supervisor Agent.
+    Agent C: Meta-Orchestrator & Captain Agent.
     - Interrogates every worker (A, B, and the free-model agents D, E, F) and logs their capabilities to Database.
     - Has all workers answer the task at once, then reviews each answer itself and sends that agent recommendations.
     - Calculates real-time tokens and USD costs for every agent.
@@ -35,9 +35,9 @@ class AgentCSupervisor:
         max_revisions: int = 3,
         extra_agents: Optional[List[BaseAgent]] = None,
     ):
-        self.name = "Agent C (Supervisor)"
+        self.name = "Agent C (Captain)"
         self.provider = "Orchestration-Core"
-        self.model = "supervisor-engine"
+        self.model = "captain-engine"
         self.agent_a = agent_a or AgentALaguna()
         self.agent_b = agent_b or AgentBNemotron()
         # free-model workers; default to the FREE_MODELS list, in the same simulation mode as A
@@ -58,7 +58,7 @@ class AgentCSupervisor:
             name=self.name,
             provider=self.provider,
             model=self.model,
-            role="Supervisor",
+            role="Captain",
             capabilities=[
                 "A2A discovery of every worker agent",
                 "Task dispatch via message/send",
@@ -75,7 +75,7 @@ class AgentCSupervisor:
             {"id": "describe", "name": "What I do", "description": "Return capabilities.", "tags": ["discovery"]},
             {"id": "draft", "name": "Draft", "description": "Answer the task.", "tags": ["create"]},
             {"id": "audit", "name": "Audit", "description": "Score the other agent's answer from 0 to 100.", "tags": ["review"]},
-            {"id": "revise", "name": "Revise", "description": "Redo the work from supervisor critique.", "tags": ["revise"]},
+            {"id": "revise", "name": "Revise", "description": "Redo the work from captain critique.", "tags": ["revise"]},
         ]
         for key, agent in self.workers.items():
             self.a2a.bind(key, card_for(agent, worker_skills), lambda m, agent=agent: self._on_worker(agent, m))
@@ -285,7 +285,7 @@ class AgentCSupervisor:
                       previous: Optional[Dict[str, str]] = None) -> Dict[str, str]:
             """Have these agents answer the task (or revise) over A2A at the same time. Agents that fail are left out."""
             feedback, previous = feedback or {}, previous or {}
-            set_status(f"REVISION_{revision}_GENERATION_ALL", f"Supervisor dispatching task to {len(keys)} agents (Revision {revision})...")
+            set_status(f"REVISION_{revision}_GENERATION_ALL", f"Captain dispatching task to {len(keys)} agents (Revision {revision})...")
             for key in keys:
                 if key not in feedback:  # on later rounds the REVISE_DIRECTIVE step is C's message
                     log(self.name, workers[key].name, "TASK_DISPATCH", f"Do this task and send me your draft:\n{task}", revision=revision)
@@ -319,7 +319,7 @@ class AgentCSupervisor:
 
         def review_all(drafts: Dict[str, str], revision: int) -> Dict[str, EvaluationResult]:
             """C scores every draft itself and writes each agent tips for a better answer."""
-            set_status(f"REVISION_{revision}_REVIEW_ALL", f"Supervisor reviewing {len(drafts)} answers and writing recommendations...")
+            set_status(f"REVISION_{revision}_REVIEW_ALL", f"Captain reviewing {len(drafts)} answers and writing recommendations...")
             results = fan_out(lambda key: self.recommend(task, drafts[key], revision), list(drafts))
             verdicts = {}
             for key, evaluation in results.items():
@@ -330,7 +330,7 @@ class AgentCSupervisor:
                 run.evaluations.append(evaluation)
                 self.db.log_evaluation(run.run_id, evaluation)
                 step = log(
-                    self.name, agent.name, "SUPERVISOR_RECOMMENDATIONS",
+                    self.name, agent.name, "CAPTAIN_RECOMMENDATIONS",
                     f"Quality Score: {evaluation.score}/100. Passed: {evaluation.passed}.\nRecommendations:\n"
                     + "\n".join(f"- {tip}" for tip in evaluation.flaws),
                     evaluation.token_usage,
@@ -367,11 +367,11 @@ class AgentCSupervisor:
             for key in lagging:
                 evaluation = verdicts[key]
                 emit("status_change", {
-                    "status": "SUPERVISOR_INTERVENTION",
-                    "message": f"{workers[key].name} scored {evaluation.score}/{self.quality_threshold}. Supervisor sending recommendations..."
+                    "status": "CAPTAIN_INTERVENTION",
+                    "message": f"{workers[key].name} scored {evaluation.score}/{self.quality_threshold}. Captain sending recommendations..."
                 })
                 feedback[key] = (
-                    f"Supervisor Recommendations for Revision {revision + 1} (you scored {evaluation.score}/{self.quality_threshold}):\n"
+                    f"Captain Recommendations for Revision {revision + 1} (you scored {evaluation.score}/{self.quality_threshold}):\n"
                     + "\n".join(f"- {tip}" for tip in evaluation.flaws)
                     + f"\nKeep what works: {'; '.join(evaluation.strengths)}\n"
                     f"Summary: {evaluation.actionable_feedback}"
@@ -383,7 +383,7 @@ class AgentCSupervisor:
                     self.name, workers[key].name, "REVISE_DIRECTIVE", feedback[key], TokenUsage(**order["metadata"]["usage"]),
                     revision=revision, score=evaluation.score, **self._a2a_meta(order),
                 )
-                emit("supervisor_intervention", {
+                emit("captain_intervention", {
                     "revision": revision,
                     "agent": workers[key].name,
                     "critique": feedback[key],
@@ -400,7 +400,7 @@ class AgentCSupervisor:
                 if evaluation.score > best[key][1].score:  # a revision can score lower; keep the best one
                     best[key] = (drafts[key], evaluation)
 
-        # Supervisor picks the strongest final answer (a tie goes to the earlier agent: A, then B, ...)
+        # Captain picks the strongest final answer (a tie goes to the earlier agent: A, then B, ...)
         scores = {workers[key].name: best[key][1].score for key in best}
         lead = max(best, key=lambda key: best[key][1].score)
         author = workers[lead]
@@ -461,7 +461,7 @@ class AgentCSupervisor:
         else:
             from core.llm import complete
             text, usage = complete(
-                "You are Agent C, a supervisor coaching another agent. Do not just list flaws: give concrete, "
+                "You are Agent C, a captain coaching another agent. Do not just list flaws: give concrete, "
                 "practical recommendations that would make the answer better, each phrased as an action plus its payoff "
                 "(e.g. 'Wear a helmet so a fall doesn't hurt you', 'Keep a firm grip so you can ride faster'). "
                 "Respond ONLY with valid JSON:\n"
@@ -495,12 +495,12 @@ class AgentCSupervisor:
         self.db.update_run(run)
 
     def chat(self, message: str) -> Dict[str, Any]:
-        """Direct conversational query to Agent C (Supervisor)."""
+        """Direct conversational query to Agent C (Captain)."""
         if self.agent_a.simulation_mode:
             registered = self.db.get_registered_agents()
             agents_summary = ", ".join([f"{a['name']} ({a['model']})" for a in registered]) if registered else "Agent A (Laguna) and Agent B (Nemotron)"
             reply = (
-                f"Hello! I am Agent C, the Supervisory Meta-Agent. "
+                f"Hello! I am Agent C, the Captain Meta-Agent. "
                 f"I actively manage: {agents_summary}.\n\n"
                 f"Regarding: '{message}'\n"
                 f"• I have Agent A (Laguna) and Agent B (Nemotron) each answer the task.\n"
@@ -513,7 +513,7 @@ class AgentCSupervisor:
             from core.llm import NoApiKey, complete
             try:
                 reply, usage = complete(
-                    "You are Agent C, the supervisor of Agent A (builder) and Agent B (reviewer). "
+                    "You are Agent C, the captain of Agent A (builder) and Agent B (reviewer). "
                     "Answer the user's message directly. Do not reply with a canned status speech.",
                     message,
                     prefer="openai",
@@ -522,7 +522,7 @@ class AgentCSupervisor:
                 reply, usage = str(exc), CostTracker.create_token_usage(self.model, 0, 0)
             except Exception as exc:
                 reply = (
-                    f"Hello! I am Agent C, your Supervisory Meta-Orchestrator.\n\n"
+                    f"Hello! I am Agent C, your Captain Meta-Orchestrator.\n\n"
                     f"Regarding your query: \"{message}\"\n\n"
                     f"• I am actively ready to dispatch tasks to **Agent A (Laguna)** and **Agent B (Nemotron)**.\n"
                     f"• You can test each agent individually or select **Triad Council** to see them collaborate.\n"
@@ -531,18 +531,18 @@ class AgentCSupervisor:
                 usage = CostTracker.create_token_usage(self.model, 25, 45)
         return {
             "sender": self.name,
-            "role": "Supervisor",
+            "role": "Captain",
             "reply": reply,
             "tokens": usage.model_dump()
         }
 
     def triad_chat(self, message: str) -> List[Dict[str, Any]]:
         """Multi-agent collaborative conversation: C directs -> A drafts -> B reviews."""
-        # 1. Supervisor acknowledges and assigns
+        # 1. Captain acknowledges and assigns
         c_usage = CostTracker.create_token_usage(self.model, 40, 60)
         c_msg = {
             "sender": self.name,
-            "role": "Supervisor",
+            "role": "Captain",
             "reply": f"Directive received: '{message}'. Delegating initial solution to Agent A (Laguna), followed by critical audit from Agent B (Nemotron).",
             "tokens": c_usage.model_dump()
         }

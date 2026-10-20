@@ -130,7 +130,7 @@ class AgentALaguna(BaseAgent):
                     f"• **Reliability:** Built-in circuit breakers, automatic retries with exponential backoff and jitter.\n"
                     f"• **Observability:** Distributed tracing (OpenTelemetry) and structured JSON logging.\n\n"
                     f"#### 2. Next Steps\n"
-                    f"You can prompt me for specific code implementations (Python, TypeScript, Go), or dispatch this objective through **Supervisor Agent C** so **Nemotron Agent B** can audit and score it against enterprise benchmarks!"
+                    f"You can prompt me for specific code implementations (Python, TypeScript, Go), or dispatch this objective through **Captain Agent C** so **Nemotron Agent B** can audit and score it against enterprise benchmarks!"
                 )
             p_tokens = CostTracker.estimate_tokens_from_text(message) + 50
             c_tokens = CostTracker.estimate_tokens_from_text(reply)

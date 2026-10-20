@@ -27,7 +27,7 @@ class FreeAgent(BaseAgent):
             provider=self.provider,
             model=self.model,
             role=self.role,
-            capabilities=["Answer drafting", "Revision from supervisor recommendations"],
+            capabilities=["Answer drafting", "Revision from captain recommendations"],
             description=f"I answer the task with the free model {self.model} and revise it from Agent C's recommendations.",
         )
 

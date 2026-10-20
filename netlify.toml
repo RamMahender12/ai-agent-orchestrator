@@ -1,5 +1,5 @@
 # Netlify Configuration for Agent Nexus
-# Multi-Agent Supervisor & Cost Telemetry Dashboard
+# Multi-Agent Captain & Cost Telemetry Dashboard
 
 [build]
   # Folder containing the static assets (index.html, styles.css, app.js)
