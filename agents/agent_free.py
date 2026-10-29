@@ -6,9 +6,16 @@ from core.llm import complete
 
 # Free OpenRouter chat models that answer alongside A and B. Override a model with AGENT_D_MODEL etc.
 FREE_MODELS = [
-    ("D", "Apodex", "apodex/apodex-1.1-mini:free"),
-    ("E", "Ling", "inclusionai/ling-3.0-flash-sante:free"),
+    ("D", "Flint", "recursive/flint-v1.0:free"),
+    ("E", "Xing", "xingchen-agi/xing4.0-29b-a4b:free"),
     ("F", "Dots", "dots-studio/dots-3-note-preview:free"),
+    ("G", "Nemotron Lightning", "nvidia/nemotron-3.5-lightning:free"),
+    ("H", "Laguna XS", "poolside/laguna-xs-2.1:free"),
+    ("I", "Gemma", "google/gemma-4-31b-it:free"),
+    ("J", "North", "cohere/north-mini-code:free"),
+    ("K", "Nemotron Super", "nvidia/nemotron-3.5-super-vl:free"),
+    ("L", "Nemotron Nano", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
+    ("M", "Gemma Small", "google/gemma-4-26b-a4b-it:free"),
 ]
 
 

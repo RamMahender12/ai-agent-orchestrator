@@ -12,10 +12,10 @@ const ROLES = { a: "Laguna", b: "Nemotron", c: "Captain" };
 const C_DESCRIPTION =
   "Sends your prompt to every agent at once, scores each answer and gives that agent " +
   "recommendations, logs every step, adds up tokens and cost, and has every agent below the pass score revise.";
-// A and B have friendly names; the free-model agents use the label in their name, e.g. "Agent D (Apodex)"
+// A and B have friendly names; the free-model agents use the label in their name, e.g. "Agent D (Flint)"
 const who = (name) => ROLES[keyOf(name)] || (/\(([^)]*)\)/.exec(name || "") || [, keyOf(name).toUpperCase()])[1];
 // free-model agents from agents/agent_free.py FREE_MODELS, so their cards show before C has registered them
-const FREE = { d: "Apodex", e: "Ling", f: "Dots" };
+const FREE = { d: "Flint", e: "Xing", f: "Dots", g: "Nemotron Lightning", h: "Laguna XS", i: "Gemma", j: "North", k: "Nemotron Super", l: "Nemotron Nano", m: "Gemma Small" };
 const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : FREE[k] || k.toUpperCase());
 const rival = (name) => ROLES[keyOf(name) === "a" ? "b" : "a"];
 const STEP_TITLE = {
@@ -101,7 +101,7 @@ function renderAgents(run, usage = []) {
   }).join("");
 }
 
-// C's own messages name the agents "Agent A (...)", "Agent D (Apodex)"; show them as Laguna, Apodex.
+// C's own messages name the agents "Agent A (...)", "Agent D (Flint)"; show them as Laguna, Flint.
 // Drafts are left untouched, they are the model's own words.
 const friendly = (text) => text.replace(/Agent ([ABD-Z])(?: \(([^)]*)\))?/g, (m, k, n) => ROLES[k.toLowerCase()] || n || m);
 

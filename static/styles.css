@@ -11,6 +11,10 @@
   --d: #c2410c;
   --e: #db2777;
   --f: #4d7c0f;
+  --g: #0369a1;
+  --h: #a16207;
+  --i: #be123c;
+  --j: #4338ca;
   --ok: #15803d;
   --bad: #b91c1c;
   --warn: #b45309;
@@ -28,6 +32,10 @@
     --d: #fb923c;
     --e: #f472b6;
     --f: #a3e635;
+    --g: #38bdf8;
+    --h: #facc15;
+    --i: #fb7185;
+    --j: #818cf8;
     --ok: #4ade80;
     --bad: #f87171;
     --warn: #fbbf24;
@@ -93,6 +101,10 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
 .agent-d { border-top-color: var(--d); }
 .agent-e { border-top-color: var(--e); }
 .agent-f { border-top-color: var(--f); }
+.agent-g { border-top-color: var(--g); }
+.agent-h { border-top-color: var(--h); }
+.agent-i { border-top-color: var(--i); }
+.agent-j { border-top-color: var(--j); }
 .agent header, .step header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agent .state { margin-left: auto; font-size: 0.82rem; color: var(--muted); }
 .agent.working .state { color: var(--warn); font-weight: 600; }
