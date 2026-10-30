@@ -15,6 +15,9 @@
   --h: #a16207;
   --i: #be123c;
   --j: #4338ca;
+  --k: #57534e;
+  --l: #047857;
+  --m: #a21caf;
   --ok: #15803d;
   --bad: #b91c1c;
   --warn: #b45309;
@@ -36,6 +39,9 @@
     --h: #facc15;
     --i: #fb7185;
     --j: #818cf8;
+    --k: #d6d3d1;
+    --l: #34d399;
+    --m: #e879f9;
     --ok: #4ade80;
     --bad: #f87171;
     --warn: #fbbf24;
@@ -105,6 +111,9 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
 .agent-h { border-top-color: var(--h); }
 .agent-i { border-top-color: var(--i); }
 .agent-j { border-top-color: var(--j); }
+.agent-k { border-top-color: var(--k); }
+.agent-l { border-top-color: var(--l); }
+.agent-m { border-top-color: var(--m); }
 .agent header, .step header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agent .state { margin-left: auto; font-size: 0.82rem; color: var(--muted); }
 .agent.working .state { color: var(--warn); font-weight: 600; }
@@ -123,6 +132,13 @@ dd { font-weight: 600; font-variant-numeric: tabular-nums; }
 .badge-d { background: var(--d); }
 .badge-e { background: var(--e); }
 .badge-f { background: var(--f); }
+.badge-g { background: var(--g); }
+.badge-h { background: var(--h); }
+.badge-i { background: var(--i); }
+.badge-j { background: var(--j); }
+.badge-k { background: var(--k); }
+.badge-l { background: var(--l); }
+.badge-m { background: var(--m); }
 @media (prefers-color-scheme: dark) { .badge { color: #111; } }
 
 /* Timeline + history */

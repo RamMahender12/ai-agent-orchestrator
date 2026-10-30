@@ -17,6 +17,28 @@ const who = (name) => ROLES[keyOf(name)] || (/\(([^)]*)\)/.exec(name || "") || [
 // free-model agents from agents/agent_free.py FREE_MODELS, so their cards show before C has registered them
 const FREE = { d: "Flint", e: "Xing", f: "Dots", g: "Nemotron Lightning", h: "Laguna XS", i: "Gemma", j: "North", k: "Nemotron Super", l: "Nemotron Nano", m: "Gemma Small" };
 const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : FREE[k] || k.toUpperCase());
+// default model ids (core/llm.py, agents/agent_free.py) until C has registered the agent with its real one
+const MODELS = {
+  a: "poolside/laguna-s-2.1:free", b: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  d: "recursive/flint-v1.0:free", e: "xingchen-agi/xing4.0-29b-a4b:free", f: "dots-studio/dots-3-note-preview:free",
+  g: "nvidia/nemotron-3.5-lightning:free", h: "poolside/laguna-xs-2.1:free", i: "google/gemma-4-31b-it:free",
+  j: "cohere/north-mini-code:free", k: "nvidia/nemotron-3.5-super-vl:free",
+  l: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", m: "google/gemma-4-26b-a4b-it:free",
+};
+// who made and hosts the model originally (OpenRouter only relays it)
+const VENDORS = {
+  nvidia: "NVIDIA cloud", poolside: "Poolside cloud", google: "Google cloud", cohere: "Cohere cloud",
+  recursive: "Recursive cloud", "xingchen-agi": "Xingchen AGI cloud", "dots-studio": "Dots Studio cloud",
+};
+// "nvidia/nemotron-3-ultra-550b-a55b:free" -> "NVIDIA cloud v3"; the first number that isn't a size like 550b
+const modelText = (id) => {
+  if (!id) return "";
+  const [vendor, model = ""] = id.replace(/:free$/, "").split("/");
+  const v = /(\d+(?:\.\d+)*)(?![\d.]*b)/.exec(model);
+  return `${VENDORS[vendor] || vendor}${v ? ` v${v[1]}` : ""}`;
+};
+const modelOf = (k) => agents[k]?.model || MODELS[k];
+const title = (k) => (modelOf(k) ? `${label(k)} - ${modelText(modelOf(k))}` : label(k));
 const rival = (name) => ROLES[keyOf(name) === "a" ? "b" : "a"];
 const STEP_TITLE = {
   CAPABILITY_DISCOVERY: (s) => `C asked ${who(s.receiver)} what it does`,
@@ -88,7 +110,7 @@ function renderAgents(run, usage = []) {
       <article class="card agent agent-${k} ${busy ? "working" : ""}">
         <header>
           <span class="badge badge-${k}">${k.toUpperCase()}</span>
-          <h3>${esc(label(k))}</h3>
+          <h3 title="${esc(modelOf(k))}">${esc(title(k))}</h3>
           <span class="state">${busy ? `${spinner} Working <span class="tick">0s</span>` : "Idle"}</span>
         </header>
         <p class="about">${about}</p>
