@@ -115,7 +115,10 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
 .agent-l { border-top-color: var(--l); }
 .agent-m { border-top-color: var(--m); }
 .agent header, .step header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.agent .state { margin-left: auto; font-size: 0.82rem; color: var(--muted); }
+.agent header { flex-wrap: nowrap; }
+.agent h3 { font-size: 0.85rem; min-width: 0; }
+.agent .badge { flex-shrink: 0; }
+.agent .state { white-space: nowrap; margin-left: auto; font-size: 0.82rem; color: var(--muted); }
 .agent.working .state { color: var(--warn); font-weight: 600; }
 .agent .about { font-size: 0.88rem; }
 .agent dl, .stats { display: flex; gap: 24px; flex-wrap: wrap; }
