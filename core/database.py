@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import json
 from pathlib import Path
@@ -6,6 +7,19 @@ from datetime import datetime
 from core.models import AgentProfile, StepLog, EvaluationResult, OrchestrationRun, TokenUsage
 
 DB_PATH = Path(__file__).resolve().parent.parent / "orchestration.db"
+
+
+def open_database() -> "Database":
+    """MongoDB when MONGODB_URI is set (survives redeploys), else the local SQLite file."""
+    if os.getenv("MONGODB_URI"):
+        from core.mongo_database import MongoDatabase
+        return MongoDatabase(os.environ["MONGODB_URI"], os.getenv("MONGODB_DB", "agent_orchestrator"))
+    return Database()
+
+
+def _chat_row(session_id: str, target: str, message: str, r: Dict[str, Any]) -> tuple:
+    tokens = r.get("tokens") or {}
+    return (session_id, target, r["sender"], message, r["reply"], tokens.get("total_tokens", 0), tokens.get("cost_usd", 0.0))
 
 class Database:
     def __init__(self, db_file: Optional[Path] = None):
@@ -85,6 +99,21 @@ class Database:
                 cost_usd REAL DEFAULT 0.0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (run_id) REFERENCES runs (run_id)
+            );
+            """)
+
+            # Direct chat history (web /api/chat and chat.py): one row per agent reply
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                target TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                reply TEXT NOT NULL,
+                tokens_total INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0.0,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
             conn.commit()
@@ -310,6 +339,45 @@ class Database:
                 GROUP BY p, agent HAVING agent IS NOT NULL""", (fmt, *periods)):
                 row(r["p"], r["agent"]).update(tokens=r["tokens"], cost_usd=r["cost"])
         return sorted(rows.values(), key=lambda r: (r["period"], r["agent"]), reverse=True)
+
+    def log_chat(self, session_id: str, target: str, message: str, responses: List[Dict[str, Any]]):
+        """Save every agent reply to a user message, with the message itself."""
+        with self.get_connection() as conn:
+            conn.executemany("""
+            INSERT INTO chats (session_id, target, sender, prompt, reply, tokens_total, cost_usd)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""", [_chat_row(session_id, target, message, r) for r in responses])
+            conn.commit()
+
+    def log_a2a(self, record: Dict[str, Any]):
+        """A2A calls already go to logs/a2a.jsonl; only the MongoDB store keeps a copy."""
+
+    def get_chat_history(self, session_id: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
+        """Chat replies oldest-first, for one session or the latest across all sessions."""
+        where, args = ("WHERE session_id = ?", (session_id,)) if session_id else ("", ())
+        with self.get_connection() as conn:
+            rows = conn.execute(f"SELECT * FROM (SELECT * FROM chats {where} ORDER BY id DESC LIMIT ?) ORDER BY id",
+                                (*args, limit)).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_agent_history(self, letter: str, limit: int = 200) -> Dict[str, Any]:
+        """Everything one agent ("A", "B", "C", ...) said or was told, newest first, plus its reviews."""
+        like = f"Agent {letter.upper()}%"
+        with self.get_connection() as conn:
+            steps = conn.execute("""
+                SELECT s.*, r.task FROM steps s LEFT JOIN runs r ON r.run_id = s.run_id
+                WHERE s.sender LIKE ? OR s.receiver LIKE ? ORDER BY s.timestamp DESC, s.id DESC LIMIT ?""",
+                (like, like, limit)).fetchall()
+            chats = conn.execute("SELECT * FROM chats WHERE sender LIKE ? ORDER BY id DESC LIMIT ?", (like, limit)).fetchall()
+            reviews = conn.execute("""
+                SELECT run_id, timestamp, json_extract(metadata, '$.evaluation') AS evaluation FROM steps
+                WHERE action IN ('CAPTAIN_RECOMMENDATIONS', 'SUPERVISOR_RECOMMENDATIONS', 'AUDIT_VERDICT')
+                  AND json_extract(metadata, '$.author') LIKE ? ORDER BY timestamp DESC LIMIT ?""", (like, limit)).fetchall()
+        return {
+            "agent": letter.upper(),
+            "steps": [dict(r) for r in steps],
+            "chats": [dict(r) for r in chats],
+            "reviews": [{**dict(r), "evaluation": json.loads(r["evaluation"] or "null")} for r in reviews],
+        }
 
     def fail_run(self, run_id: str, error: str):
         """Mark a run FAILED so it never sits in a half-finished status."""

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from core.database import Database
+from core.database import open_database
 from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
@@ -43,7 +43,8 @@ async def add_no_cache_headers(request, call_next):
     response.headers["Expires"] = "0"
     return response
 
-db = Database()
+db = open_database()
+a2a_proto.router.audit_sink = db.log_a2a
 _captain = AgentCCaptain(database=db)
 _captain.bind_a2a()
 
@@ -72,9 +73,21 @@ class ChatRequest(BaseModel):
     message: str
     simulation_mode: Optional[bool] = False
     history: Optional[List[Dict[str, str]]] = None
+    session_id: str = "web"
 
 @app.post("/api/chat")
 async def chat_with_agents(req: ChatRequest):
+    """Direct chat; every message and reply is saved to chat_messages."""
+    result = _chat(req)
+    db.log_chat(req.session_id, req.agent_target, req.message, result["responses"])
+    return result
+
+@app.get("/api/chats")
+async def get_chats(session_id: Optional[str] = None, limit: int = 200):
+    """Saved chat history, oldest first."""
+    return db.get_chat_history(session_id, limit)
+
+def _chat(req: ChatRequest):
     """Direct interactive chat with individual agents or collaborative triad."""
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -122,6 +135,13 @@ async def chat_with_agents(req: ChatRequest):
 async def get_agents():
     """Retrieve all discovered and registered agents from SQLite."""
     return db.get_registered_agents()
+
+@app.get("/api/agents/{letter}/history")
+async def get_agent_history(letter: str, limit: int = 200):
+    """One agent's full record: workflow messages it sent or got, direct chat replies, and its scores."""
+    if not (len(letter) == 1 and letter.isalpha()):
+        raise HTTPException(status_code=400, detail="letter must be a single agent letter, e.g. A")
+    return db.get_agent_history(letter, min(limit, 1000))
 
 @app.get("/api/runs")
 async def get_runs():

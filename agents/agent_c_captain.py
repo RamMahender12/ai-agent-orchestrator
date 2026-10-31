@@ -9,7 +9,7 @@ from core.models import (
     TokenUsage,
     EvaluationResult
 )
-from core.database import Database
+from core.database import Database, open_database
 from core.cost_tracker import CostTracker
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
@@ -42,7 +42,7 @@ class AgentCCaptain:
         self.agent_b = agent_b or AgentBNemotron()
         # free-model workers; default to the FREE_MODELS list, in the same simulation mode as A
         self.extra_agents = free_agents(self.agent_a.simulation_mode) if extra_agents is None else extra_agents
-        self.db = database or Database()
+        self.db = database or open_database()
         self.quality_threshold = quality_threshold
         self.max_revisions = max_revisions
         self.a2a = a2a_router

@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -17,7 +18,7 @@ load_dotenv()
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
-from core.database import Database
+from core.database import open_database
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_captain import AgentCCaptain
@@ -41,7 +42,7 @@ def main():
     else:
         console.print("[green]Running in LIVE API Mode with OpenAI & Claude keys![/green]\n")
 
-    db = Database()
+    db = open_database()
     agent_a = AgentALaguna(simulation_mode=sim_mode)
     agent_b = AgentBNemotron(simulation_mode=sim_mode)
     captain = AgentCCaptain(agent_a=agent_a, agent_b=agent_b, database=db)
@@ -64,6 +65,8 @@ def main():
     console.print("[dim]Type your message or prompt below. Type 'exit' or 'quit' to end session.[/dim]\n")
 
     history = []
+    session_id = datetime.now().strftime("cli-%Y%m%d-%H%M%S")
+    target = {"1": "triad", "2": "captain", "3": "agent_a", "4": "agent_b"}.get(choice, "triad")
 
     while True:
         try:
@@ -78,6 +81,7 @@ def main():
                 # Triad collaborative
                 console.print("\n[magenta]>> Captain coordinating Triad response...[/magenta]")
                 responses = captain.triad_chat(user_msg)
+                db.log_chat(session_id, target, user_msg, responses)
                 for r in responses:
                     sender = r["sender"]
                     role = r["role"]
@@ -99,6 +103,7 @@ def main():
             elif choice == "2":
                 # Direct Captain
                 res = captain.chat(user_msg)
+                db.log_chat(session_id, target, user_msg, [res])
                 tokens = res.get("tokens", {})
                 console.print(f"\n[bold blue]─── Agent C (Captain) ───[/bold blue]")
                 console.print(f"[dim]Tokens: {tokens.get('total_tokens', 0)} | Cost: ${tokens.get('cost_usd', 0.0):.6f}[/dim]")
@@ -107,6 +112,7 @@ def main():
             elif choice == "3":
                 # Direct Laguna Agent A
                 reply, usage = agent_a.chat(user_msg, history)
+                db.log_chat(session_id, target, user_msg, [{"sender": agent_a.name, "reply": reply, "tokens": usage.model_dump()}])
                 history.append({"role": "user", "content": user_msg})
                 history.append({"role": "assistant", "content": reply})
                 console.print(f"\n[bold green]─── Agent A (Laguna) ───[/bold green]")
@@ -116,6 +122,7 @@ def main():
             elif choice == "4":
                 # Direct Nemotron Agent B
                 reply, usage = agent_b.chat(user_msg, history)
+                db.log_chat(session_id, target, user_msg, [{"sender": agent_b.name, "reply": reply, "tokens": usage.model_dump()}])
                 history.append({"role": "user", "content": user_msg})
                 history.append({"role": "assistant", "content": reply})
                 console.print(f"\n[bold magenta]─── Agent B (Nemotron) ───[/bold magenta]")

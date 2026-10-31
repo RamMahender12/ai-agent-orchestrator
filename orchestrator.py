@@ -23,7 +23,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.markdown import Markdown
 
-from core.database import Database
+from core.database import open_database
 from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
@@ -88,7 +88,7 @@ def main():
     console.print(f"\n[bold green]Goal Task:[/bold green] {task}\n")
 
     # Initialize components
-    db = Database()
+    db = open_database()
     agent_a = AgentALaguna(model=args.model_a, simulation_mode=simulation_mode)
     agent_b = AgentBNemotron(model=args.model_b, simulation_mode=simulation_mode)
     captain = AgentCCaptain(

@@ -61,6 +61,7 @@ class A2ARouter:
     def __init__(self):
         self._agents: Dict[str, Dict[str, Any]] = {}
         self.tasks: Dict[str, Dict[str, Any]] = {}
+        self.audit_sink: Optional[Callable[[Dict[str, Any]], None]] = None  # e.g. Database.log_a2a
 
     def bind(self, key: str, card: Dict[str, Any], handler: Callable[[Dict[str, Any]], Dict[str, Any]]):
         self._agents[key] = {"card": card, "handler": handler}
@@ -201,6 +202,8 @@ class A2ARouter:
         record = {"ts": _now(), **record}
         with _LOG_LOCK, LOG_PATH.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
+        if self.audit_sink:
+            self.audit_sink(record)
 
 
 def _now() -> str:
