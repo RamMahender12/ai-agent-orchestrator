@@ -1,5 +1,6 @@
 """Read-only view of the public A2A Registry (a2a-registry.org): categories, agents per category, one agent's details."""
 import json
+import os
 import threading
 import time
 import uuid
@@ -21,8 +22,13 @@ _cache: Dict[str, Any] = {"at": 0.0, "agents": []}
 _lock = threading.Lock()
 
 
+def _auth() -> Dict[str, str]:
+    key = os.getenv("A2A_REGISTRY_API_KEY", "")
+    return {"Authorization": f"Bearer {key}"} if key.startswith("zv_") else {}
+
+
 def _page(n: int) -> Dict[str, Any]:
-    r = httpx.get(BASE, params={"limit": PAGE, "page": n}, timeout=30)
+    r = httpx.get(BASE, params={"limit": PAGE, "page": n}, headers=_auth(), timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -82,7 +88,7 @@ def live_card(url: str) -> Dict[str, Any]:
 
 
 def agent(agent_id: str) -> Dict[str, Any]:
-    r = httpx.get(f"{BASE}/{quote(agent_id, safe='')}", timeout=20)
+    r = httpx.get(f"{BASE}/{quote(agent_id, safe='')}", headers=_auth(), timeout=20)
     if r.status_code == 404:
         raise KeyError(agent_id)
     r.raise_for_status()

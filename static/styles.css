@@ -68,6 +68,7 @@ code, pre { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; 
 .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 0; }
 .top-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 main { display: grid; gap: 16px; }
+[hidden] { display: none !important; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
 
