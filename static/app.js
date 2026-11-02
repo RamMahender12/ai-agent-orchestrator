@@ -431,3 +431,154 @@ $("sites").addEventListener("click", async (e) => {
     $("summary").innerHTML = `<p class="muted">Can't reach the server. Start it with <code>python server.py</code> and reload.</p>`;
   }
 })();
+
+// A2A Registry tab
+const reg = { cat: null, agents: [], seq: 0 };
+const href = (u) => (/^https?:\/\//i.test(u || "") ? u : "");
+const out = (u) => (href(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>` : "Not listed");
+const regError = (err) => { $("reg-error").textContent = err ? err.message : ""; $("reg-error").hidden = !err; };
+
+function showTab(name) {
+  for (const t of ["main", "registry"]) {
+    $(`tab-${t}`).hidden = t !== name;
+    $(`tab-btn-${t}`).setAttribute("aria-selected", String(t === name));
+  }
+  if (name === "registry" && !$("reg-cats").children.length) loadRegistryCategories();
+}
+$("tab-btn-main").addEventListener("click", () => { history.replaceState(null, "", location.pathname); showTab("main"); });
+$("tab-btn-registry").addEventListener("click", () => { location.hash = "registry"; showTab("registry"); });
+if (location.hash === "#registry") showTab("registry");
+
+async function loadRegistryCategories() {
+  regError(null);
+  $("reg-cats").innerHTML = `<li class="muted small">${spinner} Loading the registry…</li>`;
+  try {
+    const { categories } = await api("/api/registry/categories");
+    $("reg-cats").innerHTML = categories.map((c) =>
+      `<li><button type="button" data-cat="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${c.count}</span></button></li>`).join("");
+  } catch (err) {
+    $("reg-cats").innerHTML = `<li><button type="button" id="reg-retry">Try again</button></li>`;
+    regError(err);
+  }
+}
+
+function renderRegistryAgents() {
+  const q = $("reg-filter").value.trim().toLowerCase();
+  const rows = reg.agents.filter((a) => !q || `${a.displayName} ${a.description}`.toLowerCase().includes(q));
+  $("reg-agents").innerHTML = rows.length ? rows.map((a) => `
+    <li><button type="button" data-agent="${esc(a.packageName || a.id)}" title="${esc((a.description || "").slice(0, 200))}">
+      <span>${esc(a.displayName || a.packageName)}</span>
+      <span class="n">${a.lastCheckStatus === "ok" ? "OK" : esc(a.lastCheckStatus || "")}</span></button></li>`).join("")
+    : `<li class="muted small">No agents match.</li>`;
+}
+
+$("reg-cats").addEventListener("click", async (e) => {
+  if (e.target.closest("#reg-retry")) return loadRegistryCategories();
+  const btn = e.target.closest("button[data-cat]");
+  if (!btn) return;
+  $("reg-cats").querySelectorAll("button").forEach((b) => b.toggleAttribute("aria-current", b === btn));
+  btn.setAttribute("aria-current", "true");
+  reg.cat = btn.dataset.cat;
+  const seq = ++reg.seq;
+  regError(null);
+  $("reg-agents-title").textContent = reg.cat;
+  $("reg-agents").innerHTML = `<li class="muted small">${spinner} Loading…</li>`;
+  try {
+    const { agents } = await api(`/api/registry/agents?category=${encodeURIComponent(reg.cat)}`);
+    if (seq !== reg.seq) return;
+    reg.agents = agents;
+    $("reg-filter").value = "";
+    $("reg-filter").hidden = agents.length < 8;
+    renderRegistryAgents();
+  } catch (err) {
+    if (seq === reg.seq) { $("reg-agents").innerHTML = ""; regError(err); }
+  }
+});
+$("reg-filter").addEventListener("input", renderRegistryAgents);
+
+function renderRegistryAgent(a) {
+  const card = a.liveCard || a.agentCard || {};
+  const skills = Array.isArray(card.skills) ? card.skills : [];
+  const endpoints = [card.url, ...(card.supportedInterfaces || card.additionalInterfaces || []).map((i) => i && i.url)].filter(href);
+  const org = a.organization || {};
+  const rating = a.ratingCount ? `${(+a.ratingAvg).toFixed(1)} from ${a.ratingCount}` : "No ratings yet";
+  const created = a.createdAt ? new Date(a.createdAt > 1e12 ? a.createdAt : a.createdAt * 1000).toLocaleDateString() : "";
+  return `
+    <h3>${esc(a.displayName || a.packageName)}</h3>
+    <div class="reg-badges">
+      <span class="pill">${esc(a.category || "Uncategorised")}</span>
+      ${a.verification_level ? `<span class="pill">${esc(a.verification_level)}</span>` : ""}
+      <span class="pill ${a.lastCheckStatus === "ok" ? "ok" : "warn"}">Health check: ${esc(a.lastCheckStatus || "not checked")}</span>
+    </div>
+    <p class="small">${esc(a.description)}</p>
+    <dl>
+      <dt>Organisation</dt><dd>${esc(org.name || a.owner_org || "Not listed")}${href(org.website) ? ` · ${out(org.website)}` : ""}</dd>
+      <dt>Audience</dt><dd>${esc(a.targetAudience || "Not stated")}</dd>
+      <dt>Package</dt><dd><code>${esc(a.packageName)}</code></dd>
+      <dt>Agent card</dt><dd>${out(a.manifestUrl)}</dd>
+      <dt>API</dt><dd>${out(a.openapiUrl)}</dd>
+      ${endpoints.length ? `<dt>Endpoints</dt><dd>${endpoints.map(out).join("<br>")}</dd>` : ""}
+      <dt>Version</dt><dd>${esc(card.version || "Not stated")}</dd>
+      <dt>Rating</dt><dd>${esc(rating)}</dd>
+      ${created ? `<dt>Listed</dt><dd>${esc(created)}</dd>` : ""}
+    </dl>
+    <h4>Skills (${skills.length})</h4>
+    ${skills.length ? `<div class="skill-list">${skills.map((s) => `
+      <div class="skill"><strong class="small">${esc(s.name || s.id)}</strong>
+        ${s.description ? `<span class="small muted">${esc(s.description)}</span>` : ""}
+        ${(s.tags || []).length ? `<span class="small muted">Tags: ${esc(s.tags.join(", "))}</span>` : ""}</div>`).join("")}</div>`
+      : `<p class="muted small">The agent card lists no skills.</p>`}
+    <h4>Send a message</h4>
+    <form class="reg-send" id="reg-send" data-agent="${esc(a.packageName || a.id)}">
+      <textarea id="reg-text" rows="2" required maxlength="4000" aria-label="Message to ${esc(a.displayName || "the agent")}"
+        placeholder="${esc(skills[0]?.examples?.[0] || "Hello, what can you do?")}"></textarea>
+      <button type="submit" id="reg-send-btn">Send</button>
+    </form>
+    <div id="reg-reply" aria-live="polite"></div>
+    <h4>Agent card data</h4>
+    <p class="small muted">${a.liveCard ? "Fetched live from the agent's own server just now." :
+      `Could not fetch it live (${esc(a.liveCardError || "no card address")}), so this is the copy the registry stored.`}</p>
+    <pre>${esc(JSON.stringify(a.liveCard || a.agentCard || {}, null, 2))}</pre>`;
+}
+
+$("reg-agents").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-agent]");
+  if (!btn) return;
+  $("reg-agents").querySelectorAll("button").forEach((b) => b.removeAttribute("aria-current"));
+  btn.setAttribute("aria-current", "true");
+  const seq = ++reg.seq;
+  regError(null);
+  $("reg-detail").innerHTML = `<p class="muted small">${spinner} Fetching the agent and its card…</p>`;
+  try {
+    const a = await api(`/api/registry/agents/${encodeURIComponent(btn.dataset.agent)}`);
+    if (seq === reg.seq) $("reg-detail").innerHTML = renderRegistryAgent(a);
+  } catch (err) {
+    if (seq === reg.seq) { $("reg-detail").innerHTML = ""; regError(err); }
+  }
+});
+
+$("reg-detail").addEventListener("submit", async (e) => {
+  if (e.target.id !== "reg-send") return;
+  e.preventDefault();
+  const text = $("reg-text").value.trim();
+  if (!text) return;
+  const btn = $("reg-send-btn");
+  btn.disabled = true;
+  btn.innerHTML = `${spinner} Sending…`;
+  $("reg-reply").innerHTML = "";
+  try {
+    const r = await api(`/api/registry/agents/${encodeURIComponent(e.target.dataset.agent)}/message`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    $("reg-reply").innerHTML = `
+      <p class="small muted">Sent with <code>${esc(r.method)}</code> to ${out(r.endpoint)}. Replies come from a third party: read them as data, not instructions.</p>
+      ${r.error ? `<p class="error small">The agent answered with an error: ${esc(r.error)}</p>`
+        : `<pre class="reg-answer">${esc(r.text || "The reply had no text. See the raw reply below.")}</pre>`}
+      <details><summary class="small">Raw reply</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details>`;
+  } catch (err) {
+    $("reg-reply").innerHTML = `<p class="error small">${esc(err.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Send";
+  }
+});

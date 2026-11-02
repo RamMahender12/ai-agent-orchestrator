@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Captain</title>
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <header class="top">
@@ -18,7 +18,31 @@
     </div>
   </header>
 
-  <main>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-btn-main" aria-controls="tab-main" aria-selected="true">Orchestrator</button>
+    <button type="button" role="tab" id="tab-btn-registry" aria-controls="tab-registry" aria-selected="false">A2A Registry</button>
+  </nav>
+
+  <main id="tab-registry" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
+    <p class="muted small">Agents listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Pick a category, then an agent, to see its registry entry and the agent card fetched live from its own server.</p>
+    <p class="error small" id="reg-error" role="alert" hidden></p>
+    <div class="registry">
+      <section class="card" aria-labelledby="reg-cats-title">
+        <h2 id="reg-cats-title">Categories</h2>
+        <ul class="reg-list" id="reg-cats" aria-live="polite"></ul>
+      </section>
+      <section class="card" aria-labelledby="reg-agents-title">
+        <h2 id="reg-agents-title">Agents</h2>
+        <input type="search" id="reg-filter" placeholder="Filter agents" aria-label="Filter agents" hidden>
+        <ul class="reg-list" id="reg-agents" aria-live="polite"><li class="muted small">Pick a category.</li></ul>
+      </section>
+      <section class="card reg-detail" id="reg-detail" aria-live="polite" aria-label="Agent details">
+        <p class="muted small">Pick an agent to see its details.</p>
+      </section>
+    </div>
+  </main>
+
+  <main id="tab-main" role="tabpanel" aria-labelledby="tab-btn-main">
     <form class="card" id="run-form">
       <label for="task">Task for the agents</label>
       <textarea id="task" rows="2" required placeholder="e.g. Implement an in-memory cache in Python with TTL expiration and LRU eviction"></textarea>
@@ -81,6 +105,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

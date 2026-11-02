@@ -15,7 +15,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.database import open_database
 from core.models import OrchestrationRun
@@ -24,7 +24,7 @@ from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_captain import AgentCCaptain
 import httpx
 from core import a2a as a2a_proto
-from core import sites
+from core import registry, sites
 from core.llm import HELP, _key, has_api_key
 
 app = FastAPI(title="AI Agent Captain & Multi-Agent Orchestrator", version="1.0.0")
@@ -323,6 +323,43 @@ async def list_sites(category: Optional[str] = None):
 async def delete_site(url: str):
     db.delete_site(url)
     return {"deleted": url}
+
+
+async def _registry(fn, *args):
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, fn, *args)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="That agent is not in the A2A Registry")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach the A2A Registry: {exc}")
+
+
+@app.get("/api/registry/categories")
+async def registry_categories():
+    return {"categories": await _registry(registry.categories)}
+
+
+@app.get("/api/registry/agents")
+async def registry_agents(category: str):
+    return {"category": category, "agents": await _registry(registry.agents_in, category)}
+
+
+@app.get("/api/registry/agents/{agent_id}")
+async def registry_agent(agent_id: str):
+    return await _registry(registry.agent, agent_id)
+
+
+class RegistryMessage(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@app.post("/api/registry/agents/{agent_id}/message")
+async def registry_message(agent_id: str, req: RegistryMessage):
+    """Send one message to a registry agent over A2A and return its reply."""
+    try:
+        return await _registry(registry.send, agent_id, req.text)
+    except sites.BadUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/.well-known/agent-card.json")
