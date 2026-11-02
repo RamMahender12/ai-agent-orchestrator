@@ -116,6 +116,47 @@ class Database:
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
+
+            # Website directory: one reviewed site per URL, re-reviewing replaces it
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sites (
+                url TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                summary TEXT,
+                score INTEGER NOT NULL,
+                pros TEXT,
+                cons TEXT,
+                verdict TEXT,
+                brief TEXT,
+                tokens INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0.0,
+                reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            conn.commit()
+
+    def save_site(self, site: Dict[str, Any]):
+        with self.get_connection() as conn:
+            conn.execute("""
+            INSERT OR REPLACE INTO sites (url, name, category, summary, score, pros, cons, verdict, brief, tokens, cost_usd, reviewed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""", (
+                site["url"], site["name"], site["category"], site["summary"], site["score"],
+                json.dumps(site["pros"]), json.dumps(site["cons"]), site["verdict"], json.dumps(site["brief"]),
+                site["tokens"], site["cost_usd"]))
+            conn.commit()
+
+    def get_sites(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Reviewed sites, best score first, optionally one category."""
+        where, args = ("WHERE category = ?", (category,)) if category else ("", ())
+        with self.get_connection() as conn:
+            rows = conn.execute(f"SELECT * FROM sites {where} ORDER BY score DESC, name", args).fetchall()
+        return [{**dict(r), "pros": json.loads(r["pros"] or "[]"), "cons": json.loads(r["cons"] or "[]"),
+                 "brief": json.loads(r["brief"] or "{}")} for r in rows]
+
+    def delete_site(self, url: str):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM sites WHERE url = ?", (url,))
             conn.commit()
 
     def register_agent(self, profile: AgentProfile):

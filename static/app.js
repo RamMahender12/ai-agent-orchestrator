@@ -342,6 +342,75 @@ $("run-form").addEventListener("submit", async (e) => {
   }
 });
 
+// Website directory
+function brief(s) {
+  const b = s.brief || {};
+  const list = (items) => (items || []).map((i) => `<li>${esc(i)}</li>`).join("");
+  return `
+    <h4>What the site does</h4>
+    ${b.about ? `<p class="small">${esc(b.about)}</p>` : ""}
+    ${b.audience ? `<p class="small"><strong>For</strong> ${esc(b.audience)}</p>` : ""}
+    ${b.features?.length ? `<p class="small"><strong>Features</strong></p><ul>${list(b.features)}</ul>` : ""}
+    ${b.pricing ? `<p class="small"><strong>Pricing</strong> ${esc(b.pricing)}</p>` : ""}
+    <h4>Why ${s.score}/100</h4>
+    ${(b.breakdown || []).map((r) => `
+      <div class="crit"><div><strong>${esc(r.criterion)}</strong><span>${r.score}/${r.max}</span></div>
+        <meter min="0" max="${r.max}" value="${r.score}" aria-label="${esc(r.criterion)} score"></meter>
+        <p class="small muted">${esc(r.reason)}</p></div>`).join("")}
+    ${b.reasoning ? `<p class="small">${esc(b.reasoning)}</p>` : ""}
+    <p class="small"><strong>Pros</strong></p><ul class="pros">${list(s.pros)}</ul>
+    <p class="small"><strong>Cons</strong></p><ul class="cons">${list(s.cons)}</ul>`;
+}
+
+async function loadSites() {
+  const { categories, sites } = await api(`/api/sites?category=${encodeURIComponent($("site-category").value)}`);
+  const sel = $("site-category");
+  if (sel.options.length === 1) sel.insertAdjacentHTML("beforeend", categories.map((c) => `<option>${esc(c)}</option>`).join(""));
+  $("sites").innerHTML = sites.length ? sites.map((s) => `
+    <article class="site">
+      <header>
+        <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer"><strong>${esc(s.name)}</strong></a>
+        <span class="score ${s.score >= 70 ? "pass" : "fail"}">${s.score}/100</span>
+        <button type="button" class="danger" data-site="${esc(s.url)}" aria-label="Remove ${esc(s.name)}" title="Remove">${TRASH}</button>
+      </header>
+      <p class="muted small">${esc(s.category)} · ${esc(new URL(s.url).hostname)} · reviewed ${when(s.reviewed_at)}</p>
+      <p class="small">${esc(s.summary)}</p>
+      ${s.verdict ? `<p class="small"><strong>Verdict</strong> ${esc(s.verdict)}</p>` : ""}
+      <details><summary>Full brief</summary>${brief(s)}</details>
+    </article>`).join("") : `<p class="muted">No sites${sel.value ? " in this category" : ""} yet. Enter a web address above.</p>`;
+}
+
+$("site-category").addEventListener("change", () => loadSites().catch(() => {}));
+
+$("site-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("site-error").hidden = true;
+  $("site-btn").disabled = true;
+  $("site-btn").innerHTML = `${spinner} Reviewing…`;
+  try {
+    await api("/api/sites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: $("site-url").value, simulation_mode: $("sim").checked }),
+    });
+    $("site-url").value = "";
+    await loadSites();
+  } catch (err) {
+    $("site-error").textContent = err.message;
+    $("site-error").hidden = false;
+  } finally {
+    $("site-btn").disabled = false;
+    $("site-btn").textContent = "Review site";
+  }
+});
+
+$("sites").addEventListener("click", async (e) => {
+  const del = e.target.closest("button[data-site]");
+  if (!del || !(await ask("Remove this site?", del.dataset.site))) return;
+  await api(`/api/sites?url=${encodeURIComponent(del.dataset.site)}`, { method: "DELETE" });
+  loadSites();
+});
+
 (async function init() {
   renderAgents(null);
   try {
@@ -351,6 +420,7 @@ $("run-form").addEventListener("submit", async (e) => {
     $("health").classList.add(live ? "ok" : "warn");
     $("sim").checked = !live;
     await loadAgents();
+    loadSites().catch(() => {});
     const runs = await loadRuns();
     renderAgents(null);
     if (runs.length) showRun(runs[0].run_id).then(loadRuns);

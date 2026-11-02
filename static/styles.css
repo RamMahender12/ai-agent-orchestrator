@@ -247,3 +247,24 @@ dialog p { overflow-wrap: anywhere; }
 .metrics .leader { background: color-mix(in srgb, var(--c) 8%, transparent); }
 .metrics .badge { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 #period { margin-left: auto; }
+
+/* Website directory */
+.site-form { display: flex; gap: 10px; margin-bottom: 12px; }
+.site-form input {
+  flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+.site-form button[type="submit"] { margin-left: 0; white-space: nowrap; }
+.sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+.site { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.site header { display: flex; align-items: center; gap: 8px; }
+.site header a { color: inherit; min-width: 0; overflow-wrap: anywhere; }
+.site header .danger { margin-left: auto; padding: 4px 6px; display: grid; place-items: center; }
+.site ul { list-style: disc; padding-left: 20px; font-size: 0.85rem; margin-top: 6px; }
+.site .pros li::marker { color: var(--ok); }
+.site .cons li::marker { color: var(--bad); }
+#site-category { margin-left: auto; }
+.site h4 { font-size: 0.9rem; margin: 12px 0 4px; }
+.site .crit { margin: 6px 0; }
+.site .crit > div { display: flex; justify-content: space-between; font-size: 0.85rem; }
+.site .crit meter { width: 100%; height: 8px; }

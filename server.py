@@ -22,7 +22,9 @@ from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_captain import AgentCCaptain
+import httpx
 from core import a2a as a2a_proto
+from core import sites
 from core.llm import HELP, _key, has_api_key
 
 app = FastAPI(title="AI Agent Captain & Multi-Agent Orchestrator", version="1.0.0")
@@ -287,6 +289,40 @@ async def stream_run_events(run_id: str):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+class SiteRequest(BaseModel):
+    url: str
+    simulation_mode: bool = False
+
+
+@app.post("/api/sites")
+async def review_site(req: SiteRequest):
+    """Fetch a website, have it categorised and reviewed, and save it to the directory."""
+    load_dotenv(override=True)
+    if not req.simulation_mode and not has_api_key():
+        raise HTTPException(status_code=400, detail=HELP)
+    try:
+        site = await asyncio.get_event_loop().run_in_executor(None, sites.review_site, req.url, req.simulation_mode)
+    except sites.BadUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not load the site: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The review model failed: {exc}")
+    db.save_site(site)
+    return site
+
+
+@app.get("/api/sites")
+async def list_sites(category: Optional[str] = None):
+    return {"categories": sites.CATEGORIES, "sites": db.get_sites(category)}
+
+
+@app.delete("/api/sites")
+async def delete_site(url: str):
+    db.delete_site(url)
+    return {"deleted": url}
 
 
 @app.get("/.well-known/agent-card.json")

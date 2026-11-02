@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Captain</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <header class="top">
@@ -57,6 +57,17 @@
         <ul class="runs" id="runs"></ul>
       </aside>
     </div>
+
+    <section class="card" aria-labelledby="sites-title">
+      <h2 class="history-head" id="sites-title">Website directory <span class="muted small">A categorises, B reviews and scores</span>
+        <select id="site-category" aria-label="Category"><option value="">All categories</option></select></h2>
+      <form class="site-form" id="site-form">
+        <input type="text" id="site-url" required placeholder="example.com" aria-label="Website address" inputmode="url">
+        <button type="submit" id="site-btn">Review site</button>
+      </form>
+      <p class="error small" id="site-error" role="alert" hidden></p>
+      <div class="sites" id="sites" aria-live="polite"></div>
+    </section>
   </main>
 
   <dialog id="confirm" aria-labelledby="confirm-title">
@@ -70,6 +81,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

@@ -39,6 +39,17 @@ class MongoDatabase(Database):
         self.db.chats.create_index([("session_id", ASCENDING), ("timestamp", ASCENDING)])
         self.db.chats.create_index("sender")
         self.db.a2a_log.create_index("ts")
+        self.db.sites.create_index([("category", ASCENDING), ("score", DESCENDING)])
+
+    def save_site(self, site: Dict[str, Any]):
+        self.db.sites.replace_one({"_id": site["url"]}, {**site, "reviewed_at": datetime.utcnow()}, upsert=True)
+
+    def get_sites(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        rows = self.db.sites.find({"category": category} if category else {}).sort([("score", DESCENDING), ("name", ASCENDING)])
+        return [{**_clean(r), "reviewed_at": _ts(r["reviewed_at"])} for r in rows]
+
+    def delete_site(self, url: str):
+        self.db.sites.delete_one({"_id": url})
 
     def register_agent(self, profile: AgentProfile):
         letter = profile.name.split(" (")[0]
