@@ -375,6 +375,18 @@ class RegistryMessage(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
+@app.post("/api/native/{agent_id}/message")
+async def native_message(agent_id: str, req: RegistryMessage):
+    """Send to a native agent, then rewrite its raw reply as a plain chat answer (raw reply still returned)."""
+    try:
+        r = await _registry(registry.send, agent_id, req.text)
+    except sites.BadUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not r["error"] and r["text"].strip():
+        r["answer"] = await asyncio.get_event_loop().run_in_executor(None, native.humanize, agent_id, req.text, r["text"])
+    return r
+
+
 @app.post("/api/registry/agents/{agent_id}/message")
 async def registry_message(agent_id: str, req: RegistryMessage):
     """Send one message to a registry agent over A2A and return its reply."""

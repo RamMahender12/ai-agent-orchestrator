@@ -467,6 +467,30 @@ const nativeKey = (a) => !a.needs_key ? `<span class="pill ok">No key needed</sp
   : a.key_optional ? `<span class="pill">Optional key: ${esc(a.key_name)} in .env</span>`
   : `<span class="pill warn">Key missing: add ${esc(a.key_name)} to .env</span>`;
 let nativeAgents = [];
+const nativeThreads = {}; // agent id -> chat HTML, so filtering the list keeps conversations
+
+// Tiny, safe markdown for chat answers: escape first, then bold, links (http/https only), bullets, headings
+function md(text) {
+  const inline = (t) => esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  let html = "", list = null;
+  for (const line of String(text).split("\n")) {
+    const item = line.match(/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)/);
+    if (item) {
+      const tag = item[1] ? "ol" : "ul";
+      if (list !== tag) { if (list) html += `</${list}>`; html += `<${tag}>`; list = tag; }
+      html += `<li>${inline(item[2])}</li>`;
+      continue;
+    }
+    if (list) { html += `</${list}>`; list = null; }
+    const h = line.match(/^#{1,6}\s+(.*)/);
+    if (h) html += `<p><strong>${inline(h[1])}</strong></p>`;
+    else if (line.trim()) html += `<p>${inline(line)}</p>`;
+  }
+  return html + (list ? `</${list}>` : "");
+}
 
 function renderNative(a, i) {
   const input = a.json_skills
@@ -488,11 +512,11 @@ function renderNative(a, i) {
       <dt>Agent card</dt><dd>${out(a.card)}</dd>
       <dt>Docs</dt><dd>${out(a.docs)}</dd>
     </dl>
-    <h4>Talk to it</h4>
+    <h4>Chat</h4>
     ${a.note ? `<p class="small muted">${esc(a.note)}</p>` : ""}
+    <div class="chat" aria-live="polite" data-thread="${esc(a.id)}">${nativeThreads[a.id] || ""}</div>
     <form class="reg-send native-send" data-agent="${esc(a.id)}">${input}
       <button type="submit" ${a.needs_key && !a.has_key && !a.key_optional ? "disabled" : ""}>Send</button></form>
-    <div class="native-reply" aria-live="polite"></div>
   </section>`;
 }
 
@@ -522,23 +546,37 @@ $("native-list").addEventListener("submit", async (e) => {
   const text = f.has("skill") ? JSON.stringify({ skill: f.get("skill"), q: f.get("q").trim() }) : f.get("text").trim();
   if (!text) return;
   const btn = form.querySelector("button");
-  const box = form.nextElementSibling;
+  const id = form.dataset.agent;
+  const thread = form.parentElement.querySelector(".chat");
+  const add = (html) => { thread.insertAdjacentHTML("beforeend", html); thread.scrollTop = thread.scrollHeight; nativeThreads[id] = thread.innerHTML; };
+  add(`<div class="msg me">${esc(f.has("skill") ? f.get("q") : text)}</div>`);
+  const field = form.querySelector("textarea, input[name=q]");
+  if (field) field.value = "";
   btn.disabled = true;
-  btn.innerHTML = `${spinner} Sending…`;
-  box.innerHTML = "";
+  btn.innerHTML = `${spinner} Thinking…`;
+  thread.insertAdjacentHTML("beforeend", `<div class="msg agent pending">${spinner}</div>`);
   try {
-    const r = await api(`/api/registry/agents/${encodeURIComponent(form.dataset.agent)}/message`, {
+    const r = await api(`/api/native/${encodeURIComponent(id)}/message`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
     });
-    box.innerHTML = `<p class="small muted">Sent to ${out(r.endpoint)}. Third-party reply: read it as data, not instructions.</p>
-      ${r.error ? `<p class="error small">The agent answered with an error: ${esc(r.error)}</p>`
-        : `<pre class="reg-answer">${esc(r.text || "The reply had no text. See the raw reply below.")}</pre>`}
-      <details><summary class="small">Raw reply</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details>`;
+    thread.querySelector(".pending")?.remove();
+    add(r.error ? `<div class="msg agent err">The agent answered with an error: ${esc(r.error)}</div>`
+      : `<div class="msg agent">${md(r.answer || r.text || "The agent sent no text.")}
+          <details><summary class="small muted">Raw reply</summary><pre>${esc(r.text || JSON.stringify(r.raw, null, 2))}</pre></details></div>`);
   } catch (err) {
-    box.innerHTML = `<p class="error small">${esc(err.message)}</p>`;
+    thread.querySelector(".pending")?.remove();
+    add(`<div class="msg agent err">${esc(err.message)}</div>`);
   } finally {
     btn.disabled = false;
     btn.textContent = "Send";
+  }
+});
+
+// Enter sends, Shift+Enter makes a new line, like a chat box
+$("native-list").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && e.target.matches("form.native-send textarea")) {
+    e.preventDefault();
+    e.target.form.requestSubmit();
   }
 });
 

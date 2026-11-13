@@ -333,3 +333,15 @@ dialog p { overflow-wrap: anywhere; }
 .native pre { max-height: 420px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .native-tools { display: flex; gap: 12px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
 #native-filter { flex: 1; min-width: 0; max-width: 420px; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.chat { display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto; }
+.chat:empty { display: none; }
+.msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; overflow-wrap: anywhere; font-size: 0.92rem; }
+.msg.me { align-self: flex-end; background: var(--accent, #3cc3b0); color: #06201c; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.msg.agent { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.agent p { margin: 0 0 8px; }
+.msg.agent p:last-of-type { margin-bottom: 0; }
+.msg.agent ul, .msg.agent ol { margin: 4px 0 8px; padding-left: 20px; }
+.msg.agent li { margin: 2px 0; }
+.msg.agent details { margin-top: 8px; }
+.msg.agent details pre { max-height: 260px; }
+.msg.err { color: var(--bad); }
