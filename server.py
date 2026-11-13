@@ -22,9 +22,11 @@ from core.models import OrchestrationRun
 from agents.agent_a_laguna import AgentALaguna
 from agents.agent_b_nemotron import AgentBNemotron
 from agents.agent_c_captain import AgentCCaptain
+from agents.agent_free import free_agents
+from agents.agent_registry import LETTERS, registry_agents as registry_workers
 import httpx
 from core import a2a as a2a_proto
-from core import registry, sites
+from core import native, registry, sites
 from core.llm import HELP, _key, has_api_key
 
 app = FastAPI(title="AI Agent Captain & Multi-Agent Orchestrator", version="1.0.0")
@@ -59,6 +61,7 @@ class OrchestrationRequest(BaseModel):
     model_a: Optional[str] = "poolside/laguna-s-2.1:free"
     model_b: Optional[str] = "nvidia/nemotron-3-ultra-550b-a55b:free"
     quality_threshold: Optional[int] = 80
+    registry_agents: List[str] = Field(default_factory=list, max_length=len(LETTERS))  # A2A Registry package names
 
 @app.get("/api/health")
 async def health_check():
@@ -187,6 +190,16 @@ async def start_orchestration(req: OrchestrationRequest, background_tasks: Backg
     if not sim_mode and not has_api_key():
         raise HTTPException(status_code=400, detail=HELP)
 
+    # look the picked registry agents up now, so a bad pick fails here instead of mid-run
+    picked = []
+    for agent_id in dict.fromkeys(req.registry_agents):
+        a = await _registry(registry.agent, agent_id)
+        try:
+            registry.endpoint(a.get("liveCard") or a.get("agentCard") or {})
+        except sites.BadUrl as exc:
+            raise HTTPException(status_code=400, detail=f"{a.get('displayName') or agent_id}: {exc}")
+        picked.append(a)
+
     # Pre-generate run_id so client can subscribe to SSE immediately
     import uuid
     run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -199,7 +212,8 @@ async def start_orchestration(req: OrchestrationRequest, background_tasks: Backg
         sim_mode,
         req.model_a,
         req.model_b,
-        req.quality_threshold
+        req.quality_threshold,
+        picked,
     )
 
     return {
@@ -215,7 +229,8 @@ async def execute_orchestration_background(
     simulation_mode: bool,
     model_a: str,
     model_b: str,
-    threshold: int
+    threshold: int,
+    picked: List[Dict[str, Any]],
 ):
     loop = asyncio.get_event_loop()
 
@@ -233,7 +248,8 @@ async def execute_orchestration_background(
         agent_b=agent_b,
         database=db,
         quality_threshold=threshold,
-        max_revisions=3
+        max_revisions=3,
+        extra_agents=free_agents(simulation_mode) + registry_workers(picked, simulation_mode),
     )
 
     # Wrap the synchronous captain workflow
@@ -347,6 +363,12 @@ async def registry_agents(category: str):
 @app.get("/api/registry/agents/{agent_id}")
 async def registry_agent(agent_id: str):
     return await _registry(registry.agent, agent_id)
+
+
+@app.get("/api/native")
+async def native_agents():
+    """Hand-picked agents with their source and whether their vendor key is in .env (the key itself never leaves)."""
+    return {"agents": native.public()}
 
 
 class RegistryMessage(BaseModel):

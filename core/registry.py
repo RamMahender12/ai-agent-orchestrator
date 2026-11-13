@@ -11,6 +11,7 @@ from urllib.parse import quote, urljoin
 
 import httpx
 
+from core import native
 from core.sites import BadUrl, _check_public, normalize
 
 BASE = "https://api.a2a-registry.org/public/agents"
@@ -112,10 +113,10 @@ def endpoint(card: Dict[str, Any]) -> str:
     raise BadUrl("The agent card does not say where to send messages")
 
 
-def _rpc(client: httpx.Client, url: str, method: str, message: Dict[str, Any]) -> Dict[str, Any]:
+def _rpc(client: httpx.Client, url: str, method: str, message: Dict[str, Any], auth: Dict[str, str] = None) -> Dict[str, Any]:
     _check_public(url)
     body = {"jsonrpc": "2.0", "id": uuid.uuid4().hex, "method": method, "params": {"message": message}}
-    headers = {"Accept": "application/json", **({"A2A-Version": "1.0"} if method == "SendMessage" else {})}
+    headers = {"Accept": "application/json", **({"A2A-Version": "1.0"} if method == "SendMessage" else {}), **(auth or {})}
     with client.stream("POST", url, json=body, headers=headers) as r:
         data = b""
         for chunk in r.iter_bytes():
@@ -150,18 +151,35 @@ def reply_text(result: Any) -> str:
     return "\n\n".join(texts)
 
 
+def _json_object(text: str) -> Dict[str, Any]:
+    try:
+        v = json.loads(text)
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
 def send(agent_id: str, text: str) -> Dict[str, Any]:
-    """Send one text message to a registry agent over A2A. Its reply is untrusted data, shown, never acted on."""
-    a = agent(agent_id)
-    url = normalize(endpoint(a.get("liveCard") or a.get("agentCard") or {}))
+    """Send one text message to a registry agent (or a native agent reached by its own card) over A2A. Reply is untrusted data."""
+    card_url = native.direct_card(agent_id)  # agents listed elsewhere (a2alist.ai) are reached straight from their card
+    if card_url:
+        card = live_card(card_url)
+    else:
+        a = agent(agent_id)
+        card = a.get("liveCard") or a.get("agentCard") or {}
+    url = normalize(endpoint(card))
+    auth = native.headers(agent_id, url)  # vendor-issued key for native agents, only to the vendor's own host
     mid = uuid.uuid4().hex
+    data = _json_object(text)  # a JSON object goes as a data part: many agents take {"skill": ..., ...} requests
     attempts = [  # 0.x first since most listed agents speak it, then 1.0
-        ("message/send", {"kind": "message", "role": "user", "messageId": mid, "parts": [{"kind": "text", "text": text}]}),
-        ("SendMessage", {"messageId": mid, "role": "ROLE_USER", "parts": [{"text": text}]}),
+        ("message/send", {"kind": "message", "role": "user", "messageId": mid,
+                          "parts": [{"kind": "data", "data": data} if data else {"kind": "text", "text": text}]}),
+        ("SendMessage", {"messageId": mid, "role": "ROLE_USER",
+                         "parts": [{"data": data, "mediaType": "application/json"} if data else {"text": text}]}),
     ]
     with httpx.Client(timeout=60, follow_redirects=False) as client:
         for method, message in attempts:
-            resp = _rpc(client, url, method, message)
+            resp = _rpc(client, url, method, message, auth)
             if not isinstance(resp, dict):
                 raise BadUrl("The agent did not answer with JSON-RPC")
             err = resp.get("error")
@@ -181,6 +199,7 @@ if __name__ == "__main__":
     assert endpoint({"url": "https://y.io/a2a"}) == "https://y.io/a2a"
     assert reply_text({"kind": "task", "status": {"message": {"parts": [{"kind": "text", "text": "hi"}]}},
                        "artifacts": [{"parts": [{"data": {"n": 1}}]}]}) == 'hi\n\n{\n  "n": 1\n}'
+    assert _json_object('{"skill": "x"}') == {"skill": "x"} and _json_object("hi") == {} and _json_object("[1]") == {}
     assert reply_text({"message": {"parts": [{"text": "v1"}]}}) == "v1"
     cats = categories()
     assert cats and sum(c["count"] for c in cats) == len(all_agents())

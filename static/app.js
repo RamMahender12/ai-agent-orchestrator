@@ -16,7 +16,11 @@ const C_DESCRIPTION =
 const who = (name) => ROLES[keyOf(name)] || (/\(([^)]*)\)/.exec(name || "") || [, keyOf(name).toUpperCase()])[1];
 // free-model agents from agents/agent_free.py FREE_MODELS, so their cards show before C has registered them
 const FREE = { d: "Flint", e: "Xing", f: "Dots", g: "Nemotron Lightning", h: "Laguna XS", i: "Gemma", j: "North", k: "Nemotron Super", l: "Nemotron Nano", m: "Gemma Small" };
-const label = (k) => ROLES[k] || (agents[k] ? who(agents[k].name) : FREE[k] || k.toUpperCase());
+// registry agents picked for the next run take N, O, P in pick order (agents/agent_registry.py LETTERS)
+const REG = "nop";
+let picked = []; // [{id, name}]
+const pickOf = (k) => picked[REG.indexOf(k)];
+const label = (k) => ROLES[k] || pickOf(k)?.name || (agents[k] ? who(agents[k].name) : FREE[k] || k.toUpperCase());
 // default model ids (core/llm.py, agents/agent_free.py) until C has registered the agent with its real one
 const MODELS = {
   a: "poolside/laguna-s-2.1:free", b: "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -33,11 +37,12 @@ const VENDORS = {
 // "nvidia/nemotron-3-ultra-550b-a55b:free" -> "NVIDIA cloud v3"; the first number that isn't a size like 550b
 const modelText = (id) => {
   if (!id) return "";
+  if (!id.includes("/")) return "A2A Registry"; // registry agents use their package name as the model
   const [vendor, model = ""] = id.replace(/:free$/, "").split("/");
   const v = /(\d+(?:\.\d+)*)(?![\d.]*b)/.exec(model);
   return `${VENDORS[vendor] || vendor}${v ? ` v${v[1]}` : ""}`;
 };
-const modelOf = (k) => agents[k]?.model || MODELS[k];
+const modelOf = (k) => pickOf(k)?.id || agents[k]?.model || MODELS[k];
 const title = (k) => (modelOf(k) ? `${label(k)} - ${modelText(modelOf(k))}` : label(k));
 const rival = (name) => ROLES[keyOf(name) === "a" ? "b" : "a"];
 const STEP_TITLE = {
@@ -98,7 +103,10 @@ function workingAgent(status) {
 
 function renderAgents(run, usage = []) {
   const working = run ? workingAgent(run.status) : null;
-  const keys = [...new Set(["a", "b", ...Object.keys(FREE), ...Object.keys(agents).sort()]), "c"];
+  const ran = new Set(usage.map((u) => keyOf(u.agent)));
+  // a registry agent's card shows while it is picked, or for a run it took part in
+  const keys = [...new Set(["a", "b", ...Object.keys(FREE), ...Object.keys(agents).filter((k) => !REG.includes(k)),
+    ...[...REG].filter((k) => pickOf(k) || ran.has(k))].sort()), "c"];
   $("agents").innerHTML = keys.map((k) => {
     const busy = working === k || (working === "all" && k !== "c");
     const info = agents[k];
@@ -326,6 +334,7 @@ $("run-form").addEventListener("submit", async (e) => {
         task: $("task").value,
         simulation_mode: $("sim").checked,
         quality_threshold: Number($("threshold").value),
+        registry_agents: picked.map((p) => p.id),
       }),
     });
     liveId = run_id;
@@ -439,15 +448,99 @@ const out = (u) => (href(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener
 const regError = (err) => { $("reg-error").textContent = err ? err.message : ""; $("reg-error").hidden = !err; };
 
 function showTab(name) {
-  for (const t of ["main", "registry"]) {
+  for (const t of ["main", "registry", "native"]) {
     $(`tab-${t}`).hidden = t !== name;
     $(`tab-btn-${t}`).setAttribute("aria-selected", String(t === name));
   }
   if (name === "registry" && !$("reg-cats").children.length) loadRegistryCategories();
+  if (name === "native" && !$("native-list").children.length) loadNative();
 }
 $("tab-btn-main").addEventListener("click", () => { history.replaceState(null, "", location.pathname); showTab("main"); });
 $("tab-btn-registry").addEventListener("click", () => { location.hash = "registry"; showTab("registry"); });
+$("tab-btn-native").addEventListener("click", () => { location.hash = "native"; showTab("native"); });
 if (location.hash === "#registry") showTab("registry");
+if (location.hash === "#native") showTab("native");
+
+// Native Agents tab: catalog from /api/native; messages go through the registry route, which adds the vendor key server side
+const nativeKey = (a) => !a.needs_key ? `<span class="pill ok">No key needed</span>`
+  : a.has_key ? `<span class="pill ok">Key loaded from .env (${esc(a.key_name)})</span>`
+  : a.key_optional ? `<span class="pill">Optional key: ${esc(a.key_name)} in .env</span>`
+  : `<span class="pill warn">Key missing: add ${esc(a.key_name)} to .env</span>`;
+let nativeAgents = [];
+
+function renderNative(a, i) {
+  const input = a.json_skills
+    ? `<select name="skill" aria-label="Skill">${a.json_skills.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select>
+       <input type="text" name="q" required maxlength="200" aria-label="Search for" placeholder="Search for">`
+    : `<textarea name="text" rows="3" required maxlength="4000" aria-label="Message to ${esc(a.title)}">${esc(a.example || "")}</textarea>`;
+  return `<section class="card native" aria-labelledby="native-${i}">
+    <h2 id="native-${i}">${esc(a.title)}</h2>
+    <p class="native-tag">${esc(a.tagline)}</p>
+    <div class="reg-badges"><span class="pill">A2A</span><span class="pill">From ${esc(a.source)}</span>${nativeKey(a)}</div>
+    <p class="small">${esc(a.description)}</p>
+    <h4>What it can do</h4>
+    <div class="reg-badges">${a.skills.map((s) => `<span class="pill">${esc(s)}</span>`).join("")}</div>
+    <h4>Where it comes from</h4>
+    <dl>
+      <dt>Made by</dt><dd>${esc(a.vendor)} · ${out(a.site)}</dd>
+      <dt>Found on</dt><dd>${href(a.source_url) ? `<a href="${esc(a.source_url)}" target="_blank" rel="noopener noreferrer">${esc(a.source)}</a>` : esc(a.source)}</dd>
+      <dt>API key from</dt><dd>${a.needs_key ? out(a.key_url) : "Not needed"}</dd>
+      <dt>Agent card</dt><dd>${out(a.card)}</dd>
+      <dt>Docs</dt><dd>${out(a.docs)}</dd>
+    </dl>
+    <h4>Talk to it</h4>
+    ${a.note ? `<p class="small muted">${esc(a.note)}</p>` : ""}
+    <form class="reg-send native-send" data-agent="${esc(a.id)}">${input}
+      <button type="submit" ${a.needs_key && !a.has_key && !a.key_optional ? "disabled" : ""}>Send</button></form>
+    <div class="native-reply" aria-live="polite"></div>
+  </section>`;
+}
+
+async function loadNative() {
+  $("native-list").innerHTML = `<p class="muted small">${spinner} Loading…</p>`;
+  try {
+    nativeAgents = (await api("/api/native")).agents;
+    renderNativeList();
+  } catch (err) {
+    $("native-list").innerHTML = `<p class="error small">${esc(err.message)}</p>`;
+  }
+}
+
+function renderNativeList() {
+  const q = $("native-filter").value.trim().toLowerCase();
+  const rows = nativeAgents.filter((a) => !q || [a.title, a.tagline, a.description, a.source, ...a.skills].join(" ").toLowerCase().includes(q));
+  $("native-count").textContent = `${rows.length} of ${nativeAgents.length} agents`;
+  $("native-list").innerHTML = rows.length ? rows.map(renderNative).join("") : `<p class="muted small">No agents match.</p>`;
+}
+$("native-filter").addEventListener("input", renderNativeList);
+
+$("native-list").addEventListener("submit", async (e) => {
+  const form = e.target.closest("form.native-send");
+  if (!form) return;
+  e.preventDefault();
+  const f = new FormData(form);
+  const text = f.has("skill") ? JSON.stringify({ skill: f.get("skill"), q: f.get("q").trim() }) : f.get("text").trim();
+  if (!text) return;
+  const btn = form.querySelector("button");
+  const box = form.nextElementSibling;
+  btn.disabled = true;
+  btn.innerHTML = `${spinner} Sending…`;
+  box.innerHTML = "";
+  try {
+    const r = await api(`/api/registry/agents/${encodeURIComponent(form.dataset.agent)}/message`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    box.innerHTML = `<p class="small muted">Sent to ${out(r.endpoint)}. Third-party reply: read it as data, not instructions.</p>
+      ${r.error ? `<p class="error small">The agent answered with an error: ${esc(r.error)}</p>`
+        : `<pre class="reg-answer">${esc(r.text || "The reply had no text. See the raw reply below.")}</pre>`}
+      <details><summary class="small">Raw reply</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details>`;
+  } catch (err) {
+    box.innerHTML = `<p class="error small">${esc(err.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Send";
+  }
+});
 
 async function loadRegistryCategories() {
   regError(null);
@@ -505,6 +598,7 @@ function renderRegistryAgent(a) {
   const created = a.createdAt ? new Date(a.createdAt > 1e12 ? a.createdAt : a.createdAt * 1000).toLocaleDateString() : "";
   return `
     <h3>${esc(a.displayName || a.packageName)}</h3>
+    ${pickButton(a.packageName || a.id, a.displayName || a.packageName)}
     <div class="reg-badges">
       <span class="pill">${esc(a.category || "Uncategorised")}</span>
       ${a.verification_level ? `<span class="pill">${esc(a.verification_level)}</span>` : ""}
@@ -581,4 +675,35 @@ $("reg-detail").addEventListener("submit", async (e) => {
     btn.disabled = false;
     btn.textContent = "Send";
   }
+});
+
+// Registry agents picked to answer alongside our agents in the next run
+function pickButton(id, name) {
+  const on = picked.some((p) => p.id === id);
+  const full = !on && picked.length >= REG.length;
+  return `<button type="button" class="reg-pick ${on ? "ghost" : ""}" data-pick="${esc(id)}" data-name="${esc(name)}" ${full ? "disabled" : ""}>
+    ${on ? "Remove from the next run" : full ? `Next run is full (${REG.length} registry agents)` : "Add to the next run"}</button>`;
+}
+
+function setPicked(next) {
+  picked = next;
+  $("picked").hidden = !picked.length;
+  $("picked").innerHTML = picked.length ? `<span class="small muted">Registry agents in this run:</span>` + picked.map((p, i) =>
+    `<button type="button" data-unpick="${esc(p.id)}" aria-label="Remove ${esc(p.name)} from this run" title="Remove from this run">
+      <span class="badge badge-${REG[i]}">${REG[i].toUpperCase()}</span> ${esc(p.name)} ×</button>`).join("") : "";
+  const btn = $("reg-detail").querySelector("button[data-pick]");
+  if (btn) btn.outerHTML = pickButton(btn.dataset.pick, btn.dataset.name);
+  lastSig = ""; // a live run re-renders on its next poll
+  if (!shownId) renderAgents(null); else if (shownId !== liveId) showRun(shownId).catch(() => {});
+}
+
+$("reg-detail").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-pick]");
+  if (!btn) return;
+  const id = btn.dataset.pick;
+  setPicked(picked.some((p) => p.id === id) ? picked.filter((p) => p.id !== id) : [...picked, { id, name: btn.dataset.name }]);
+});
+$("picked").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-unpick]");
+  if (btn) setPicked(picked.filter((p) => p.id !== btn.dataset.unpick));
 });

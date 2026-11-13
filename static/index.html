@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Captain</title>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
   <header class="top">
@@ -21,7 +21,17 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button type="button" role="tab" id="tab-btn-main" aria-controls="tab-main" aria-selected="true">Orchestrator</button>
     <button type="button" role="tab" id="tab-btn-registry" aria-controls="tab-registry" aria-selected="false">A2A Registry</button>
+    <button type="button" role="tab" id="tab-btn-native" aria-controls="tab-native" aria-selected="false">Native Agents</button>
   </nav>
+
+  <main id="tab-native" role="tabpanel" aria-labelledby="tab-btn-native" hidden>
+    <p class="muted small">Hand-picked agents we connect to directly. We found them on public A2A directories, and the ones that need a key use one issued by the agent's own website (stored in <code>.env</code>, never sent to the browser). They are hosted by someone else, so their replies are third-party data.</p>
+    <div class="native-tools">
+      <input type="search" id="native-filter" placeholder="Search agents, skills or source" aria-label="Search native agents">
+      <span class="muted small" id="native-count"></span>
+    </div>
+    <div class="native-list" id="native-list" aria-live="polite"></div>
+  </main>
 
   <main id="tab-registry" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
     <p class="muted small">Agents listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Pick a category, then an agent, to see its registry entry and the agent card fetched live from its own server.</p>
@@ -52,6 +62,7 @@
         </label>
         <button type="submit" id="run-btn">Run</button>
       </div>
+      <div class="picked" id="picked" hidden></div>
       <p class="error" id="error" role="alert" hidden></p>
     </form>
 
@@ -105,6 +116,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
