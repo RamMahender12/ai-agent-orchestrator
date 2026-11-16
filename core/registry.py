@@ -49,9 +49,31 @@ def all_agents() -> List[Dict[str, Any]]:
         return agents
 
 
+def speaks_jsonrpc(card: Any, protocol: str = "a2a") -> bool:
+    """False when the card declares only other transports (HTTP+JSON, MCP...). No transport stated = A2A default, JSON-RPC."""
+    if isinstance(card, str):
+        try:
+            card = json.loads(card)
+        except ValueError:
+            card = {}
+    if (protocol or "a2a") != "a2a":
+        return False
+    if not isinstance(card, dict):
+        return True
+    lst = lambda x: x if isinstance(x, list) else []
+    kinds = {str(i.get("transport") or i.get("protocolBinding") or "").upper()
+             for i in lst(card.get("supportedInterfaces")) + lst(card.get("additionalInterfaces")) if isinstance(i, dict)}
+    kinds.discard("")
+    preferred = str(card.get("preferredTransport") or "").upper()
+    if preferred:
+        return preferred == "JSONRPC" or "JSONRPC" in kinds
+    return not kinds or "JSONRPC" in kinds
+
+
 def _summary(a: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: a.get(k) for k in ("id", "packageName", "displayName", "description", "category",
-                                  "verification_level", "lastCheckStatus", "ratingAvg", "ratingCount")}
+    row = {k: a.get(k) for k in ("id", "packageName", "displayName", "description", "category",
+                                 "verification_level", "lastCheckStatus", "ratingAvg", "ratingCount")}
+    return {**row, "messageable": speaks_jsonrpc(a.get("source_agent_card"), a.get("protocolStd"))}
 
 
 def categories() -> List[Dict[str, Any]]:
@@ -100,7 +122,8 @@ def agent(agent_id: str) -> Dict[str, Any]:
             live = live_card(a["manifestUrl"])
         except (BadUrl, httpx.HTTPError) as exc:
             error = str(exc) or type(exc).__name__
-    return {**a, "liveCard": live, "liveCardError": error}
+    return {**a, "liveCard": live, "liveCardError": error,
+            "messageable": speaks_jsonrpc(live or a.get("agentCard"), a.get("protocolStd"))}
 
 
 def endpoint(card: Dict[str, Any]) -> str:
@@ -199,6 +222,17 @@ def _json_object(text: str) -> Dict[str, Any]:
     return v if isinstance(v, dict) else {}
 
 
+def _not_a2a(card: Dict[str, Any]) -> str:
+    """Many listed agents expose a plain HTTP API and only use the card as a listing; say that instead of 'no result'."""
+    kinds = sorted({str(i.get("transport") or i.get("protocolBinding")) for i in
+                    (card.get("supportedInterfaces") or card.get("additionalInterfaces") or [])
+                    if isinstance(i, dict) and (i.get("transport") or i.get("protocolBinding"))})
+    docs = card.get("documentationUrl")
+    return ("This agent does not answer A2A JSON-RPC messages"
+            + (f"; its card lists {', '.join(kinds)}" if kinds else "")
+            + (f". See how to use it: {docs}" if docs else "."))
+
+
 def send(agent_id: str, text: str) -> Dict[str, Any]:
     """Send one text message to a registry agent (or a native agent reached by its own card) over A2A. Reply is untrusted data."""
     card_url = native.direct_card(agent_id)  # agents listed elsewhere (a2alist.ai) are reached straight from their card
@@ -224,7 +258,7 @@ def send(agent_id: str, text: str) -> Dict[str, Any]:
                 raise BadUrl("The agent did not answer with JSON-RPC")
             err = resp.get("error")
             if not err and "result" not in resp:
-                err = {"message": str(resp.get("message") or "The agent's reply had no result")}
+                err = {"message": str(resp.get("message") or "The agent's reply had no result") if "jsonrpc" in resp else _not_a2a(card)}
             if err and not isinstance(err, dict):
                 err = {"message": str(err)}  # some agents send a bare string
             if err and method != attempts[-1][0]:
@@ -241,6 +275,12 @@ if __name__ == "__main__":
                        "artifacts": [{"parts": [{"data": {"n": 1}}]}]}) == 'hi\n\nn: 1'
     assert _shorten_text('1 found.\n{"results": [{"name": "P", "provider_type": "mcp", "url": " https://h.in"}]}') \
         == "1 found.\n\n1. P - mcp - https://h.in"
+    assert speaks_jsonrpc({}) and speaks_jsonrpc('{"preferredTransport": "JSONRPC"}')
+    assert not speaks_jsonrpc({"additionalInterfaces": [{"transport": "HTTP+JSON"}]})
+    assert speaks_jsonrpc({"additionalInterfaces": [{"transport": "HTTP+JSON"}, {"transport": "JSONRPC"}]})
+    assert not speaks_jsonrpc({"preferredTransport": "HTTP+JSON"}) and not speaks_jsonrpc({}, "mcp")
+    assert _not_a2a({"additionalInterfaces": [{"url": "u", "transport": "HTTP+JSON"}], "documentationUrl": "d"}) \
+        == "This agent does not answer A2A JSON-RPC messages; its card lists HTTP+JSON. See how to use it: d"
     assert _json_object('{"skill": "x"}') == {"skill": "x"} and _json_object("hi") == {} and _json_object("[1]") == {}
     assert reply_text({"message": {"parts": [{"text": "v1"}]}}) == "v1"
     cats = categories()

@@ -599,7 +599,7 @@ function renderRegistryAgents() {
   $("reg-agents").innerHTML = rows.length ? rows.map((a) => `
     <li><button type="button" data-agent="${esc(a.packageName || a.id)}" title="${esc((a.description || "").slice(0, 200))}">
       <span>${esc(a.displayName || a.packageName)}</span>
-      <span class="n">${a.lastCheckStatus === "ok" ? "OK" : esc(a.lastCheckStatus || "")}</span></button></li>`).join("")
+      <span class="n">${a.messageable === false ? "No A2A" : a.lastCheckStatus === "ok" ? "OK" : esc(a.lastCheckStatus || "")}</span></button></li>`).join("")
     : `<li class="muted small">No agents match.</li>`;
 }
 
@@ -636,7 +636,7 @@ function renderRegistryAgent(a) {
   const created = a.createdAt ? new Date(a.createdAt > 1e12 ? a.createdAt : a.createdAt * 1000).toLocaleDateString() : "";
   return `
     <h3>${esc(a.displayName || a.packageName)}</h3>
-    ${pickButton(a.packageName || a.id, a.displayName || a.packageName)}
+    ${a.messageable === false ? "" : pickButton(a.packageName || a.id, a.displayName || a.packageName)}
     <div class="reg-badges">
       <span class="pill">${esc(a.category || "Uncategorised")}</span>
       ${a.verification_level ? `<span class="pill">${esc(a.verification_level)}</span>` : ""}
@@ -661,12 +661,13 @@ function renderRegistryAgent(a) {
         ${(s.tags || []).length ? `<span class="small muted">Tags: ${esc(s.tags.join(", "))}</span>` : ""}</div>`).join("")}</div>`
       : `<p class="muted small">The agent card lists no skills.</p>`}
     <h4>Send a message</h4>
+    ${a.messageable === false ? `<p class="small muted">This agent does not take A2A messages: its card lists only other ways in (such as a plain HTTP API). ${card.documentationUrl ? `See how to use it: ${out(card.documentationUrl)}` : ""}</p>` : `
     <form class="reg-send" id="reg-send" data-agent="${esc(a.packageName || a.id)}">
       <textarea id="reg-text" rows="2" required maxlength="4000" aria-label="Message to ${esc(a.displayName || "the agent")}"
         placeholder="${esc(skills[0]?.examples?.[0] || "Hello, what can you do?")}"></textarea>
       <button type="submit" id="reg-send-btn">Send</button>
     </form>
-    <div id="reg-reply" aria-live="polite"></div>
+    <div id="reg-reply" aria-live="polite"></div>`}
     <h4>Agent card data</h4>
     <p class="small muted">${a.liveCard ? "Fetched live from the agent's own server just now." :
       `Could not fetch it live (${esc(a.liveCardError || "no card address")}), so this is the copy the registry stored.`}</p>
