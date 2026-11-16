@@ -332,7 +332,7 @@ $("run-form").addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         task: $("task").value,
-        simulation_mode: $("sim").checked,
+        simulation_mode: false,
         quality_threshold: Number($("threshold").value),
         registry_agents: picked.map((p) => p.id),
       }),
@@ -400,7 +400,7 @@ $("site-form").addEventListener("submit", async (e) => {
     await api("/api/sites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: $("site-url").value, simulation_mode: $("sim").checked }),
+      body: JSON.stringify({ url: $("site-url").value, simulation_mode: false }),
     });
     $("site-url").value = "";
     await loadSites();
@@ -423,11 +423,6 @@ $("sites").addEventListener("click", async (e) => {
 (async function init() {
   renderAgents(null);
   try {
-    const health = await api("/api/health");
-    const live = health.default_mode === "live";
-    $("health").textContent = live ? "API key found" : "No API key: simulation only";
-    $("health").classList.add(live ? "ok" : "warn");
-    $("sim").checked = !live;
     await loadAgents();
     loadSites().catch(() => {});
     const runs = await loadRuns();
@@ -435,8 +430,6 @@ $("sites").addEventListener("click", async (e) => {
     if (runs.length) showRun(runs[0].run_id).then(loadRuns);
     else $("summary").innerHTML = `<p class="muted">Nothing yet. Enter a task above and press Run.</p>`;
   } catch (err) {
-    $("health").textContent = "Backend offline";
-    $("health").classList.add("bad");
     $("summary").innerHTML = `<p class="muted">Can't reach the server. Start it with <code>python server.py</code> and reload.</p>`;
   }
 })();
