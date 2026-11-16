@@ -145,10 +145,50 @@ def reply_text(result: Any) -> str:
         if not isinstance(p, dict):
             continue
         if p.get("text"):
-            texts.append(str(p["text"]))
+            texts.append(_shorten_text(str(p["text"])))
         elif p.get("data") is not None:
-            texts.append(json.dumps(p["data"], ensure_ascii=False, indent=2))
+            texts.append(_short(p["data"]))
     return "\n\n".join(texts)
+
+
+_NAME = ("name", "title", "displayName", "agent_id", "id")
+_INFO = ("description", "summary", "provider_type", "type", "category")
+_LINK = ("url", "link", "href", "pricing_url")
+
+
+def _pick(d: Dict[str, Any], keys) -> str:
+    return next((str(d[k]).strip() for k in keys if d.get(k) not in (None, "", [], {})), "")
+
+
+def _short(v: Any) -> str:
+    """One short line per item instead of a JSON dump. The UI's Raw reply keeps the full JSON."""
+    if isinstance(v, list):
+        items = [x for x in v if isinstance(x, dict)]
+        if not items:
+            return ", ".join(map(str, v))
+        return "\n".join(f"{i}. " + " - ".join(s for s in (_pick(x, _NAME) or "item", _pick(x, _INFO)[:120], _pick(x, _LINK)) if s)
+                         for i, x in enumerate(items, 1))
+    if not isinstance(v, dict):
+        return str(v)
+    lists = [(k, x) for k, x in v.items() if isinstance(x, list) and any(isinstance(i, dict) for i in x)]
+    if lists:  # e.g. {"results": [...]}: the list is the answer
+        return "\n".join(_short(x) if len(lists) == 1 else f"{k}:\n{_short(x)}" for k, x in lists)
+    if _pick(v, _NAME):
+        return _short([v])
+    flat = [f"{k}: {x}" for k, x in v.items() if x not in (None, "", [], {}) and not isinstance(x, (dict, list))]
+    return "; ".join(flat) or json.dumps(v, ensure_ascii=False)
+
+
+def _shorten_text(text: str) -> str:
+    """Agents often put a JSON blob inside a text part: keep the sentence, shorten the blob."""
+    i = text.find("{")
+    if i < 0:
+        return text
+    try:
+        obj, end = json.JSONDecoder().raw_decode(text, i)
+    except ValueError:
+        return text
+    return "\n\n".join(s for s in (text[:i].strip(), _short(obj), text[end:].strip()) if s)
 
 
 def _json_object(text: str) -> Dict[str, Any]:
@@ -198,7 +238,9 @@ if __name__ == "__main__":
     assert endpoint({"supportedInterfaces": [{"url": "https://x.io/rpc", "protocolBinding": "JSONRPC"}]}) == "https://x.io/rpc"
     assert endpoint({"url": "https://y.io/a2a"}) == "https://y.io/a2a"
     assert reply_text({"kind": "task", "status": {"message": {"parts": [{"kind": "text", "text": "hi"}]}},
-                       "artifacts": [{"parts": [{"data": {"n": 1}}]}]}) == 'hi\n\n{\n  "n": 1\n}'
+                       "artifacts": [{"parts": [{"data": {"n": 1}}]}]}) == 'hi\n\nn: 1'
+    assert _shorten_text('1 found.\n{"results": [{"name": "P", "provider_type": "mcp", "url": " https://h.in"}]}') \
+        == "1 found.\n\n1. P - mcp - https://h.in"
     assert _json_object('{"skill": "x"}') == {"skill": "x"} and _json_object("hi") == {} and _json_object("[1]") == {}
     assert reply_text({"message": {"parts": [{"text": "v1"}]}}) == "v1"
     cats = categories()
