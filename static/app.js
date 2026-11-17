@@ -546,24 +546,37 @@ const nativeThreads = {}; // agent id -> chat HTML, so filtering the list keeps 
 // Tiny, safe markdown for chat answers: escape first, then bold, links (http/https only), bullets, headings
 function md(text) {
   const inline = (t) => esc(t)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<em>$2</em>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
-  let html = "", list = null;
+  let html = "", list = null, code = null;
+  const endList = () => { if (list) { html += `</${list}>`; list = null; } };
+  const block = (lines) => `<pre><code>${esc(lines.join("\n"))}</code></pre>`;
   for (const line of String(text).split("\n")) {
+    if (/^\s*```/.test(line)) { // fenced code block
+      if (code) { html += block(code); code = null; } else { endList(); code = []; }
+      continue;
+    }
+    if (code) { code.push(line); continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { endList(); html += "<hr>"; continue; }
     const item = line.match(/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)/);
     if (item) {
       const tag = item[1] ? "ol" : "ul";
-      if (list !== tag) { if (list) html += `</${list}>`; html += `<${tag}>`; list = tag; }
+      if (list !== tag) { endList(); html += `<${tag}>`; list = tag; }
       html += `<li>${inline(item[2])}</li>`;
       continue;
     }
-    if (list) { html += `</${list}>`; list = null; }
-    const h = line.match(/^#{1,6}\s+(.*)/);
-    if (h) html += `<p><strong>${inline(h[1])}</strong></p>`;
+    endList();
+    const h = line.match(/^(#{1,6})\s+(.*)/);
+    const q = line.match(/^>\s?(.*)/);
+    if (h) html += h[1].length <= 2 ? `<h3>${inline(h[2])}</h3>` : `<h4>${inline(h[2])}</h4>`;
+    else if (q) html += `<blockquote>${inline(q[1])}</blockquote>`;
     else if (line.trim()) html += `<p>${inline(line)}</p>`;
   }
-  return html + (list ? `</${list}>` : "");
+  endList();
+  return html + (code ? block(code) : "");
 }
 
 let nativeSel = null;
@@ -646,6 +659,15 @@ $("native-list").addEventListener("click", (e) => {
   renderNativeChat();
 });
 
+$("native-chat").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-copy-msg]");
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.closest(".msg-body").querySelector(".md").innerText).then(() => {
+    btn.classList.add("done");
+    setTimeout(() => btn.classList.remove("done"), 1500);
+  });
+});
+
 $("native-chat").addEventListener("submit", async (e) => {
   const form = e.target.closest("form.native-send");
   if (!form) return;
@@ -667,19 +689,21 @@ $("native-chat").addEventListener("submit", async (e) => {
   if (field) field.value = "";
   btn.disabled = true;
   btn.innerHTML = spinner;
-  thread.insertAdjacentHTML("beforeend", `<div class="msg agent pending">${dots}</div>`);
+  const ag = nativeAgents.find((x) => x.id === id) || { id, title: "?" };
+  const reply = (body, cls = "") => `<div class="msg agent ${cls}">${avatar(ag, "sm")}<div class="msg-body">${body}</div></div>`;
+  thread.insertAdjacentHTML("beforeend", reply(dots, "pending"));
   thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
   try {
     const r = await api(`/api/native/${encodeURIComponent(id)}/message`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
     });
     thread.querySelector(".pending")?.remove();
-    add(r.error ? `<div class="msg agent err">The agent answered with an error: ${esc(r.error)}</div>`
-      : `<div class="msg agent">${md(r.answer || r.text || "The agent sent no text.")}
-          <details><summary class="small muted">Raw reply</summary><pre>${esc(r.text || JSON.stringify(r.raw, null, 2))}</pre></details></div>`);
+    add(r.error ? reply(`The agent answered with an error: ${esc(r.error)}`, "err")
+      : reply(`<div class="md">${md(r.answer || r.text || "The agent sent no text.")}</div>
+          <div class="msg-actions"><button type="button" class="icon-btn" data-copy-msg aria-label="Copy reply" title="Copy">${COPY}</button></div>`));
   } catch (err) {
     thread.querySelector(".pending")?.remove();
-    add(`<div class="msg agent err">${esc(err.message)}</div>`);
+    add(reply(esc(err.message), "err"));
   } finally {
     btn.disabled = false;
     btn.innerHTML = SEND;
