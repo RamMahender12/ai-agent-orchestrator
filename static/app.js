@@ -61,6 +61,26 @@ const STEP_TITLE = {
 const REPLIES = new Set(["DRAFT_SUBMISSION", "REVISED_DRAFT", "AUDIT_VERDICT", "AGENT_FAILED"]);
 const date = (ts) => new Date(ts.replace(" ", "T") + "Z");
 const spinner = '<span class="spinner" aria-hidden="true"></span>';
+const dots = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+const SEND = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+const COPY = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
+const LOGO = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
+const SUGGEST = [
+  "Implement an in-memory cache in Python with TTL expiration and LRU eviction",
+  "Write a SQL query that returns each customer's three most recent orders",
+  "Design a rate limiter for a public REST API and explain the trade-offs",
+  "Explain the CAP theorem with a real-world example",
+];
+let seen = { id: null, n: 0 }; // steps already on screen, so only new ones animate in
+
+function welcome(note) {
+  $("summary").innerHTML = `<div class="welcome">
+    <span class="logo lg">${LOGO}</span>
+    <h1>What should the agents work on?</h1>
+    <p class="muted">${note || "Captain C sends your task to every agent at once, scores each answer, has anyone below the pass score revise, and tracks tokens and cost."}</p>
+    <div class="suggest">${SUGGEST.map((s) => `<button type="button" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+  </div>`;
+}
 
 let agents = {}; // what C recorded about A and B, keyed a/b
 let liveId = null; // run being polled
@@ -142,8 +162,10 @@ function stepBody(step) {
   if (ev) {
     const list = (title, items) =>
       items?.length ? `<p class="small"><strong>${title}</strong></p><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "";
+    const cls = ev.passed ? "pass" : "fail";
     return `
-      <p><span class="score ${ev.passed ? "pass" : "fail"}">${ev.score}/100</span> ${ev.passed ? "Passed" : "Below the pass score"}</p>
+      <div class="scorebar ${cls}"><span class="score ${cls}">${ev.score}/100</span><span class="bar"><i style="--w:${Math.max(0, Math.min(100, +ev.score || 0))}%"></i></span>
+        <span class="muted small">${ev.passed ? "Passed" : "Below the pass score"}</span></div>
       ${list(keyOf(ev.reviewer) === "c" ? "Recommendations" : "Problems", ev.flaws)}${list("Strengths", ev.strengths)}
       <p class="small"><strong>Feedback</strong> ${esc(ev.actionable_feedback)}</p>`;
   }
@@ -158,6 +180,10 @@ function renderRun({ run, steps, evaluations, usage }) {
   if (sig === lastSig) return; // keep opened <details> open between polls
   lastSig = sig;
   liveSince = Date.now();
+  const from = seen.id === run.run_id ? seen.n : 0;
+  seen = { id: run.run_id, n: steps.length };
+  const sc = $("tab-main");
+  const nearBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 200;
 
   renderAgents(run, usage);
   // the final output is always the best-scoring draft, so its score is the highest one logged
@@ -165,46 +191,89 @@ function renderRun({ run, steps, evaluations, usage }) {
   const done = DONE.has(run.status);
   const finalStep = steps.findLast((s) => s.content === run.final_output);
   $("summary").innerHTML = `
-    <p class="task">${esc(run.task)}</p>
-    <dl class="stats">
-      <div><dt>Status</dt><dd><span class="status status-${done ? run.status : "RUNNING"}">${STATUS_LABEL[run.status] || "Running…"}</span></dd></div>
-      <div><dt>Rounds</dt><dd>${run.revisions_count}</dd></div>
-      <div><dt>Best score</dt><dd>${lastScore}</dd></div>
-      <div><dt>Total tokens</dt><dd>${num(run.total_tokens)}</dd></div>
-      <div><dt>Total cost</dt><dd>${money(run.total_cost_usd)}</dd></div>
-    </dl>`;
+    <div class="msg-user ${from ? "" : "enter"}">${esc(run.task)}</div>
+    <div class="stats">
+      <span class="status status-${done ? run.status : "RUNNING"}">${STATUS_LABEL[run.status] || "Running…"}</span>
+      <span class="chip"><b>${run.revisions_count}</b> rounds</span>
+      <span class="chip">best <b>${lastScore}</b></span>
+      <span class="chip"><b>${num(run.total_tokens)}</b> tokens</span>
+      <span class="chip"><b>${money(run.total_cost_usd)}</b></span>
+    </div>`;
 
   $("timeline").innerHTML = steps.map((s, i) => {
+    const k = keyOf(s.sender);
     const took = REPLIES.has(s.action) && i ? ` · took ${Math.round((date(s.timestamp) - date(steps[i - 1].timestamp)) / 1000)}s` : "";
     const spent = s.tokens_total
       ? `${num(s.tokens_total)} tokens (${num(s.tokens_prompt)} in, ${num(s.tokens_completion)} out) · ${money(s.cost_usd)}`
       : "no model call";
+    const fresh = i >= from ? `enter" style="--d:${Math.min(i - from, 10) * 45}ms` : "";
     return `
-    <li class="step step-${keyOf(s.sender)} ${s.action === "REVISE_DIRECTIVE" ? "directive" : ""}">
-      <header>
-        <span class="badge badge-${keyOf(s.sender)}">${keyOf(s.sender).toUpperCase()}</span>
-        <strong>${(STEP_TITLE[s.action] || (() => esc(s.action)))(s)}</strong>
-        <span class="muted small meta">${date(s.timestamp).toLocaleTimeString()}${took} · ${spent}</span>
-      </header>
-      ${stepBody(s)}
+    <li class="step step-${k} ${s.action === "REVISE_DIRECTIVE" ? "directive" : ""} ${fresh}">
+      <span class="badge badge-${k}">${k.toUpperCase()}</span>
+      <div class="step-main">
+        <header><span class="who">${esc(who(s.sender))}</span><span class="muted small">${date(s.timestamp).toLocaleTimeString()}${took}</span></header>
+        <p class="step-title">${(STEP_TITLE[s.action] || (() => esc(s.action)))(s)}</p>
+        <div class="step-body">${stepBody(s)}</div>
+        <p class="meta-line">${spent}</p>
+      </div>
     </li>`;
   }).join("");
 
   const failed = run.status === "FAILED";
+  const w = workingAgent(run.status);
   $("live").innerHTML = !done
     ? (run.run_id === liveId
-      ? `<div class="live live-${workingAgent(run.status)}">${spinner}<strong>${liveText(run)}</strong><span class="tick muted">0s</span>
-           <span class="muted small meta">so far: ${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)}</span></div>`
-      : `<p class="muted">This run never finished.</p>`)
+      ? `<div class="live live-${w}"><span class="badge badge-${w === "all" ? "c" : w}">${w === "all" ? "C" : w.toUpperCase()}</span>
+           <div class="live-body">${dots}<strong class="shimmer">${liveText(run)}</strong><span class="tick muted">0s</span>
+           <span class="muted">so far ${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)}</span></div></div>`
+      : `<p class="muted small">This run never finished.</p>`)
     : run.final_output ? `
       <section class="final ${failed ? "failed" : ""}">
         <header>
+          <span class="final-icon" aria-hidden="true">${failed ? "!" : "✓"}</span>
           <h3>${failed ? "Run failed" : `Final output${finalStep ? ` by ${who(finalStep.sender)}` : ""}`}</h3>
-          <span class="muted small meta">${failed ? "" : `score ${lastScore} · `}${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)} · finished ${when(run.completed_at)}</span>
+          <button type="button" class="icon-btn" data-copy aria-label="Copy output" title="Copy">${COPY}</button>
         </header>
+        <p class="muted small">${failed ? "" : `score ${lastScore} · `}${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)} · finished ${when(run.completed_at)}</p>
         <pre>${esc(run.final_output)}</pre>
       </section>` : "";
+
+  if (!from) sc.scrollTop = 0;
+  else if (nearBottom) sc.scrollTo({ top: sc.scrollHeight, behavior: "smooth" });
 }
+
+$("live").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.closest(".final").querySelector("pre").textContent).then(() => {
+    btn.classList.add("done");
+    setTimeout(() => btn.classList.remove("done"), 1500);
+  });
+});
+
+$("summary").addEventListener("click", (e) => {
+  const s = e.target.closest("[data-suggest]");
+  if (!s) return;
+  $("task").value = s.dataset.suggest;
+  $("task").focus();
+});
+
+function newRun() {
+  showTab("main");
+  if (liveId) { // a run is going: show it instead of dropping its polling
+    if (shownId !== liveId) { lastSig = ""; showRun(liveId).then(loadRuns); }
+    return $("task").focus();
+  }
+  shownId = null;
+  lastSig = "";
+  seen = { id: null, n: 0 };
+  renderAgents(null);
+  $("timeline").innerHTML = $("live").innerHTML = "";
+  welcome();
+  document.querySelectorAll("#runs .selected").forEach((b) => b.classList.remove("selected"));
+  $("task").focus();
+}
+$("new-run").addEventListener("click", newRun);
 
 async function loadRuns() {
   const runs = await api("/api/runs");
@@ -308,7 +377,7 @@ async function deleteRuns(runId, task) {
   shownId = null;
   renderAgents(null);
   $("timeline").innerHTML = $("live").innerHTML = "";
-  $("summary").innerHTML = `<p class="muted">Nothing yet. Enter a task above and press Run.</p>`;
+  welcome();
 }
 
 $("clear-runs").addEventListener("click", () => deleteRuns());
@@ -319,6 +388,7 @@ $("runs").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-run]");
   if (!btn) return;
   lastSig = "";
+  showTab("main");
   showRun(btn.dataset.run).then(loadRuns);
 });
 
@@ -339,10 +409,13 @@ $("run-form").addEventListener("submit", async (e) => {
     });
     liveId = run_id;
     lastSig = "";
-    $("summary").innerHTML = `<p class="muted">Starting… C is asking A and B what they do.</p>`;
+    seen = { id: run_id, n: 0 };
+    $("summary").innerHTML = `<div class="msg-user enter">${esc($("task").value)}</div>`;
+    $("task").value = "";
     $("timeline").innerHTML = "";
     liveSince = Date.now();
-    $("live").innerHTML = `<div class="live live-c">${spinner}<strong>Starting the run</strong><span class="tick muted">0s</span></div>`;
+    $("live").innerHTML = `<div class="live live-c"><span class="badge badge-c">C</span>
+      <div class="live-body">${dots}<strong class="shimmer">Starting the run</strong><span class="tick muted">0s</span></div></div>`;
     showRun(run_id);
   } catch (err) {
     $("error").textContent = err.message;
@@ -428,9 +501,9 @@ $("sites").addEventListener("click", async (e) => {
     const runs = await loadRuns();
     renderAgents(null);
     if (runs.length) showRun(runs[0].run_id).then(loadRuns);
-    else $("summary").innerHTML = `<p class="muted">Nothing yet. Enter a task above and press Run.</p>`;
+    else welcome();
   } catch (err) {
-    $("summary").innerHTML = `<p class="muted">Can't reach the server. Start it with <code>python server.py</code> and reload.</p>`;
+    welcome("Can't reach the server. Start it with <code>python server.py</code> and reload.");
   }
 })();
 
@@ -440,19 +513,27 @@ const href = (u) => (/^https?:\/\//i.test(u || "") ? u : "");
 const out = (u) => (href(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>` : "Not listed");
 const regError = (err) => { $("reg-error").textContent = err ? err.message : ""; $("reg-error").hidden = !err; };
 
+const TABS = ["main", "native", "registry", "metrics", "sites"];
+const setNav = (open) => {
+  document.body.classList.toggle("nav-open", open);
+  $("nav-toggle").setAttribute("aria-expanded", String(open));
+};
+$("nav-toggle").addEventListener("click", () => setNav(!document.body.classList.contains("nav-open")));
+$("scrim").addEventListener("click", () => setNav(false));
+
 function showTab(name) {
-  for (const t of ["main", "registry", "native"]) {
+  for (const t of TABS) {
     $(`tab-${t}`).hidden = t !== name;
     $(`tab-btn-${t}`).setAttribute("aria-selected", String(t === name));
   }
+  setNav(false);
+  if (name === "main") history.replaceState(null, "", location.pathname);
+  else if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
   if (name === "registry" && !$("reg-cats").children.length) loadRegistryCategories();
   if (name === "native" && !$("native-list").children.length) loadNative();
 }
-$("tab-btn-main").addEventListener("click", () => { history.replaceState(null, "", location.pathname); showTab("main"); });
-$("tab-btn-registry").addEventListener("click", () => { location.hash = "registry"; showTab("registry"); });
-$("tab-btn-native").addEventListener("click", () => { location.hash = "native"; showTab("native"); });
-if (location.hash === "#registry") showTab("registry");
-if (location.hash === "#native") showTab("native");
+for (const t of TABS) $(`tab-btn-${t}`).addEventListener("click", () => showTab(t));
+if (TABS.includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
 // Native Agents tab: catalog from /api/native; messages go through the registry route, which adds the vendor key server side
 const nativeKey = (a) => !a.needs_key ? `<span class="pill ok">No key needed</span>`
@@ -485,41 +566,64 @@ function md(text) {
   return html + (list ? `</${list}>` : "");
 }
 
-function renderNative(a, i) {
+let nativeSel = null;
+const hue = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+const avatar = (a, cls = "") => `<span class="avatar ${cls}" style="--h:${hue(a.id)}" aria-hidden="true">${esc((a.title || "?")[0].toUpperCase())}</span>`;
+const blocked = (a) => a.needs_key && !a.has_key && !a.key_optional;
+
+function renderNativeChat() {
+  const a = nativeAgents.find((x) => x.id === nativeSel);
+  if (!a) return ($("native-chat").innerHTML = `<p class="empty-pane">Pick an agent to start a conversation.</p>`);
+  const thread = nativeThreads[a.id] || "";
   const input = a.json_skills
-    ? `<select name="skill" aria-label="Skill">${a.json_skills.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select>
-       <input type="text" name="q" required maxlength="200" aria-label="Search for" placeholder="Search for">`
-    : `<textarea name="text" rows="3" required maxlength="4000" aria-label="Message to ${esc(a.title)}">${esc(a.example || "")}</textarea>`;
-  return `<section class="card native" aria-labelledby="native-${i}">
-    <h2 id="native-${i}">${esc(a.title)}</h2>
-    <p class="native-tag">${esc(a.tagline)}</p>
-    <div class="reg-badges"><span class="pill">A2A</span><span class="pill">From ${esc(a.source)}</span>${nativeKey(a)}</div>
-    <p class="small">${esc(a.description)}</p>
-    <h4>What it can do</h4>
-    <div class="reg-badges">${a.skills.map((s) => `<span class="pill">${esc(s)}</span>`).join("")}</div>
-    <h4>Where it comes from</h4>
-    <dl>
-      <dt>Made by</dt><dd>${esc(a.vendor)} · ${out(a.site)}</dd>
-      <dt>Found on</dt><dd>${href(a.source_url) ? `<a href="${esc(a.source_url)}" target="_blank" rel="noopener noreferrer">${esc(a.source)}</a>` : esc(a.source)}</dd>
-      <dt>API key from</dt><dd>${a.needs_key ? out(a.key_url) : "Not needed"}</dd>
-      <dt>Agent card</dt><dd>${out(a.card)}</dd>
-      <dt>Docs</dt><dd>${out(a.docs)}</dd>
-    </dl>
-    <h4>Chat</h4>
-    ${a.note ? `<p class="small muted">${esc(a.note)}</p>` : ""}
-    <div class="chat" aria-live="polite" data-thread="${esc(a.id)}">${nativeThreads[a.id] || ""}</div>
-    <form class="reg-send native-send" data-agent="${esc(a.id)}">${input}
-      <button type="submit" ${a.needs_key && !a.has_key && !a.key_optional ? "disabled" : ""}>Send</button></form>
-  </section>`;
+    ? `<div class="composer-fields"><select name="skill" aria-label="Skill">${a.json_skills.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select>
+       <input type="text" name="q" required maxlength="200" aria-label="Search for" placeholder="Search for…"></div>`
+    : `<textarea name="text" rows="1" required maxlength="4000" aria-label="Message to ${esc(a.title)}" placeholder="Message ${esc(a.title)}…">${esc(a.example || "")}</textarea>`;
+  $("native-chat").innerHTML = `
+    <header class="chat-head">
+      ${avatar(a)}
+      <div><h2>${esc(a.title)}</h2><p class="muted small">${esc(a.tagline)}</p></div>
+      <details class="about-agent"><summary>About</summary>
+        <div class="about-pop">
+          <div class="reg-badges"><span class="pill">A2A</span><span class="pill">From ${esc(a.source)}</span>${nativeKey(a)}</div>
+          <p class="small">${esc(a.description)}</p>
+          <h4>What it can do</h4>
+          <div class="reg-badges">${a.skills.map((s) => `<span class="pill">${esc(s)}</span>`).join("")}</div>
+          <h4>Where it comes from</h4>
+          <dl>
+            <dt>Made by</dt><dd>${esc(a.vendor)} · ${out(a.site)}</dd>
+            <dt>Found on</dt><dd>${href(a.source_url) ? `<a href="${esc(a.source_url)}" target="_blank" rel="noopener noreferrer">${esc(a.source)}</a>` : esc(a.source)}</dd>
+            <dt>API key from</dt><dd>${a.needs_key ? out(a.key_url) : "Not needed"}</dd>
+            <dt>Agent card</dt><dd>${out(a.card)}</dd>
+            <dt>Docs</dt><dd>${out(a.docs)}</dd>
+          </dl>
+        </div>
+      </details>
+    </header>
+    <div class="chat-scroll">
+      ${thread ? "" : `<div class="chat-hero">${avatar(a, "lg")}<h2>${esc(a.title)}</h2><p class="muted">${esc(a.description)}</p>
+        <div class="reg-badges">${a.skills.slice(0, 6).map((s) => `<span class="pill">${esc(s)}</span>`).join("")}</div></div>`}
+      <div class="chat" data-thread="${esc(a.id)}">${thread}</div>
+    </div>
+    <form class="composer native-send" data-agent="${esc(a.id)}">
+      ${a.note ? `<p class="hint" style="margin:0 0 8px">${esc(a.note)}</p>` : ""}
+      <div class="composer-box">${input}
+        <div class="composer-row">${nativeKey(a)}
+          <button type="submit" class="send" aria-label="Send" ${blocked(a) ? "disabled" : ""}>${SEND}</button></div>
+      </div>
+    </form>`;
+  $("native-chat").querySelector(".chat").lastElementChild?.scrollIntoView({ block: "end" });
 }
 
 async function loadNative() {
-  $("native-list").innerHTML = `<p class="muted small">${spinner} Loading…</p>`;
+  $("native-list").innerHTML = `<li class="muted small">${spinner} Loading…</li>`;
   try {
     nativeAgents = (await api("/api/native")).agents;
+    nativeSel ??= nativeAgents[0]?.id;
     renderNativeList();
+    renderNativeChat();
   } catch (err) {
-    $("native-list").innerHTML = `<p class="error small">${esc(err.message)}</p>`;
+    $("native-list").innerHTML = `<li class="error small">${esc(err.message)}</li>`;
   }
 }
 
@@ -527,27 +631,44 @@ function renderNativeList() {
   const q = $("native-filter").value.trim().toLowerCase();
   const rows = nativeAgents.filter((a) => !q || [a.title, a.tagline, a.description, a.source, ...a.skills].join(" ").toLowerCase().includes(q));
   $("native-count").textContent = `${rows.length} of ${nativeAgents.length} agents`;
-  $("native-list").innerHTML = rows.length ? rows.map(renderNative).join("") : `<p class="muted small">No agents match.</p>`;
+  $("native-list").innerHTML = rows.length ? rows.map((a, i) => `
+    <li style="animation-delay:${Math.min(i, 12) * 25}ms"><button type="button" data-native="${esc(a.id)}" aria-current="${a.id === nativeSel}">
+      ${avatar(a)}<span class="nl-text"><strong>${esc(a.title)}</strong><span>${esc(a.tagline)}</span></span>
+      <span class="key-dot ${blocked(a) ? "warn" : ""}" title="${blocked(a) ? "API key missing" : "Ready"}"></span>
+    </button></li>`).join("") : `<li class="muted small">No agents match.</li>`;
 }
 $("native-filter").addEventListener("input", renderNativeList);
+$("native-list").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-native]");
+  if (!btn) return;
+  nativeSel = btn.dataset.native;
+  $("native-list").querySelectorAll("button[data-native]").forEach((b) => b.setAttribute("aria-current", String(b === btn)));
+  renderNativeChat();
+});
 
-$("native-list").addEventListener("submit", async (e) => {
+$("native-chat").addEventListener("submit", async (e) => {
   const form = e.target.closest("form.native-send");
   if (!form) return;
   e.preventDefault();
   const f = new FormData(form);
   const text = f.has("skill") ? JSON.stringify({ skill: f.get("skill"), q: f.get("q").trim() }) : f.get("text").trim();
   if (!text) return;
-  const btn = form.querySelector("button");
+  const btn = form.querySelector("button[type=submit]");
   const id = form.dataset.agent;
   const thread = form.parentElement.querySelector(".chat");
-  const add = (html) => { thread.insertAdjacentHTML("beforeend", html); thread.scrollTop = thread.scrollHeight; nativeThreads[id] = thread.innerHTML; };
+  const add = (html) => {
+    thread.parentElement.querySelector(".chat-hero")?.remove();
+    thread.insertAdjacentHTML("beforeend", html);
+    thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
+    nativeThreads[id] = thread.innerHTML;
+  };
   add(`<div class="msg me">${esc(f.has("skill") ? f.get("q") : text)}</div>`);
   const field = form.querySelector("textarea, input[name=q]");
   if (field) field.value = "";
   btn.disabled = true;
-  btn.innerHTML = `${spinner} Thinking…`;
-  thread.insertAdjacentHTML("beforeend", `<div class="msg agent pending">${spinner}</div>`);
+  btn.innerHTML = spinner;
+  thread.insertAdjacentHTML("beforeend", `<div class="msg agent pending">${dots}</div>`);
+  thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
   try {
     const r = await api(`/api/native/${encodeURIComponent(id)}/message`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
@@ -561,13 +682,14 @@ $("native-list").addEventListener("submit", async (e) => {
     add(`<div class="msg agent err">${esc(err.message)}</div>`);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Send";
+    btn.innerHTML = SEND;
   }
 });
 
 // Enter sends, Shift+Enter makes a new line, like a chat box
-$("native-list").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && e.target.matches("form.native-send textarea")) {
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.target.matches(".composer textarea")) {
+    if (e.target.form.querySelector("button[type=submit]").disabled) return e.preventDefault();
     e.preventDefault();
     e.target.form.requestSubmit();
   }

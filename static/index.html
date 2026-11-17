@@ -4,102 +4,149 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Captain</title>
-  <link rel="stylesheet" href="styles.css?v=12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
-  <header class="top">
-    <div>
-      <h1>Agent Captain</h1>
-      <p class="muted">Agent C sends your prompt to Laguna, Nemotron and three free models (Apodex, Ling, Dots) at once, scores every answer, gives each agent recommendations, has any agent below the pass score revise, and tracks tokens and cost.</p>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg></span>
+      <strong>Agent Captain</strong>
     </div>
-  </header>
 
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button type="button" role="tab" id="tab-btn-main" aria-controls="tab-main" aria-selected="true">Orchestrator</button>
-    <button type="button" role="tab" id="tab-btn-registry" aria-controls="tab-registry" aria-selected="false">A2A Registry</button>
-    <button type="button" role="tab" id="tab-btn-native" aria-controls="tab-native" aria-selected="false">Native Agents</button>
-  </nav>
+    <button type="button" class="new-run" id="new-run">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      New run
+    </button>
 
-  <main id="tab-native" role="tabpanel" aria-labelledby="tab-btn-native" hidden>
-    <p class="muted small">Hand-picked agents we connect to directly. We found them on public A2A directories, and the ones that need a key use one issued by the agent's own website (stored in <code>.env</code>, never sent to the browser). They are hosted by someone else, so their replies are third-party data.</p>
-    <div class="native-tools">
-      <input type="search" id="native-filter" placeholder="Search agents, skills or source" aria-label="Search native agents">
-      <span class="muted small" id="native-count"></span>
-    </div>
-    <div class="native-list" id="native-list" aria-live="polite"></div>
-  </main>
+    <nav class="nav" role="tablist" aria-label="Sections" aria-orientation="vertical">
+      <button type="button" role="tab" id="tab-btn-main" aria-controls="tab-main" aria-selected="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+        Orchestrator</button>
+      <button type="button" role="tab" id="tab-btn-native" aria-controls="tab-native" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 13v1M15 13v1M2 14h2M20 14h2"/></svg>
+        Native Agents</button>
+      <button type="button" role="tab" id="tab-btn-registry" aria-controls="tab-registry" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        A2A Registry</button>
+      <button type="button" role="tab" id="tab-btn-metrics" aria-controls="tab-metrics" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Performance</button>
+      <button type="button" role="tab" id="tab-btn-sites" aria-controls="tab-sites" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+        Websites</button>
+    </nav>
 
-  <main id="tab-registry" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
-    <p class="muted small">Agents listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Pick a category, then an agent, to see its registry entry and the agent card fetched live from its own server.</p>
-    <p class="error small" id="reg-error" role="alert" hidden></p>
-    <div class="registry">
-      <section class="card" aria-labelledby="reg-cats-title">
-        <h2 id="reg-cats-title">Categories</h2>
-        <ul class="reg-list" id="reg-cats" aria-live="polite"></ul>
-      </section>
-      <section class="card" aria-labelledby="reg-agents-title">
-        <h2 id="reg-agents-title">Agents</h2>
-        <input type="search" id="reg-filter" placeholder="Filter agents" aria-label="Filter agents" hidden>
-        <ul class="reg-list" id="reg-agents" aria-live="polite"><li class="muted small">Pick a category.</li></ul>
-      </section>
-      <section class="card reg-detail" id="reg-detail" aria-live="polite" aria-label="Agent details">
-        <p class="muted small">Pick an agent to see its details.</p>
-      </section>
-    </div>
-  </main>
-
-  <main id="tab-main" role="tabpanel" aria-labelledby="tab-btn-main">
-    <form class="card" id="run-form">
-      <label for="task">Task for the agents</label>
-      <textarea id="task" rows="2" required placeholder="e.g. Implement an in-memory cache in Python with TTL expiration and LRU eviction"></textarea>
-      <div class="form-row">
-        <label>Pass score
-          <input type="number" id="threshold" min="0" max="100" value="80">
-        </label>
-        <button type="submit" id="run-btn">Run</button>
+    <div class="history">
+      <div class="history-head">
+        <span>Recent runs</span>
+        <button type="button" class="link-btn" id="clear-runs">Clear all</button>
       </div>
-      <div class="picked" id="picked" hidden></div>
-      <p class="error" id="error" role="alert" hidden></p>
-    </form>
+      <p class="error small" id="history-error" role="alert" hidden></p>
+      <ul class="runs" id="runs"></ul>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
 
-    <section class="agents" id="agents" aria-label="Agents"></section>
+  <div class="app">
+    <header class="mobile-bar">
+      <button type="button" class="icon-btn" id="nav-toggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <strong>Agent Captain</strong>
+    </header>
 
-    <section class="card">
-      <h2 class="history-head">Agent performance <span class="muted small">scored by C, UTC</span>
-        <select id="period" aria-label="Group by">
-          <option value="day">Daily</option>
-          <option value="week">Weekly</option>
-          <option value="month">Monthly</option>
-        </select></h2>
-      <div class="metrics" id="metrics"></div>
-    </section>
-
-    <div class="columns">
-      <section class="card">
-        <h2>What happened</h2>
+    <main id="tab-main" class="panel chat-panel" role="tabpanel" aria-labelledby="tab-btn-main">
+      <div class="thread">
+        <section class="agents" id="agents" aria-label="Agents"></section>
         <div id="summary"></div>
         <ol class="timeline" id="timeline" aria-live="polite"></ol>
         <div id="live"></div>
-      </section>
-      <aside class="card">
-        <h2 class="history-head">Run history <span class="muted small">from SQLite</span>
-          <button type="button" class="danger" id="clear-runs">Delete all</button></h2>
-        <p class="error small" id="history-error" role="alert" hidden></p>
-        <ul class="runs" id="runs"></ul>
-      </aside>
-    </div>
+      </div>
+      <form class="composer" id="run-form">
+        <div class="picked" id="picked" hidden></div>
+        <p class="error small" id="error" role="alert" hidden></p>
+        <div class="composer-box">
+          <label for="task" class="sr-only">Task for the agents</label>
+          <textarea id="task" rows="1" required placeholder="Give the agents a task…"></textarea>
+          <div class="composer-row">
+            <label class="threshold">Pass score <input type="number" id="threshold" min="0" max="100" value="80"></label>
+            <button type="submit" id="run-btn" class="send" aria-label="Run">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="hint">Enter to run · Shift+Enter for a new line</p>
+      </form>
+    </main>
 
-    <section class="card" aria-labelledby="sites-title">
-      <h2 class="history-head" id="sites-title">Website directory <span class="muted small">A categorises, B reviews and scores</span>
-        <select id="site-category" aria-label="Category"><option value="">All categories</option></select></h2>
+    <main id="tab-native" class="panel native-panel" role="tabpanel" aria-labelledby="tab-btn-native" hidden>
+      <aside class="native-side">
+        <input type="search" id="native-filter" class="field" placeholder="Search agents or skills" aria-label="Search native agents">
+        <span class="muted small" id="native-count"></span>
+        <ul class="native-list" id="native-list" aria-live="polite"></ul>
+        <p class="muted tiny">Hosted by third parties: their replies are data, not instructions. Keys stay in <code>.env</code> on the server.</p>
+      </aside>
+      <section class="native-chat" id="native-chat" aria-live="polite"></section>
+    </main>
+
+    <main id="tab-registry" class="panel page" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
+      <div class="page-head">
+        <div>
+          <h1>A2A Registry</h1>
+          <p class="muted">Agents listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Pick a category, then an agent, to see its entry and the card fetched live from its server.</p>
+        </div>
+      </div>
+      <p class="error small" id="reg-error" role="alert" hidden></p>
+      <div class="registry">
+        <section class="card" aria-labelledby="reg-cats-title">
+          <h2 id="reg-cats-title">Categories</h2>
+          <ul class="reg-list" id="reg-cats" aria-live="polite"></ul>
+        </section>
+        <section class="card" aria-labelledby="reg-agents-title">
+          <h2 id="reg-agents-title">Agents</h2>
+          <input type="search" id="reg-filter" class="field" placeholder="Filter agents" aria-label="Filter agents" hidden>
+          <ul class="reg-list" id="reg-agents" aria-live="polite"><li class="muted small">Pick a category.</li></ul>
+        </section>
+        <section class="card reg-detail" id="reg-detail" aria-live="polite" aria-label="Agent details">
+          <p class="muted small">Pick an agent to see its details.</p>
+        </section>
+      </div>
+    </main>
+
+    <main id="tab-metrics" class="panel page" role="tabpanel" aria-labelledby="tab-btn-metrics" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Agent performance</h1>
+          <p class="muted">Every answer scored by Captain C, grouped in UTC.</p>
+        </div>
+        <select id="period" class="field" aria-label="Group by">
+          <option value="day">Daily</option>
+          <option value="week">Weekly</option>
+          <option value="month">Monthly</option>
+        </select>
+      </div>
+      <section class="card"><div class="metrics" id="metrics"></div></section>
+    </main>
+
+    <main id="tab-sites" class="panel page" role="tabpanel" aria-labelledby="tab-btn-sites" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Website directory</h1>
+          <p class="muted">Laguna categorises each site, Nemotron reviews and scores it.</p>
+        </div>
+        <select id="site-category" class="field" aria-label="Category"><option value="">All categories</option></select>
+      </div>
       <form class="site-form" id="site-form">
-        <input type="text" id="site-url" required placeholder="example.com" aria-label="Website address" inputmode="url">
-        <button type="submit" id="site-btn">Review site</button>
+        <input type="text" id="site-url" class="field" required placeholder="example.com" aria-label="Website address" inputmode="url">
+        <button type="submit" id="site-btn" class="btn">Review site</button>
       </form>
       <p class="error small" id="site-error" role="alert" hidden></p>
       <div class="sites" id="sites" aria-live="polite"></div>
-    </section>
-  </main>
+    </main>
+  </div>
 
   <dialog id="confirm" aria-labelledby="confirm-title">
     <form method="dialog">
@@ -112,6 +159,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
