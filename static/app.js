@@ -521,7 +521,7 @@ $("sites").addEventListener("click", async (e) => {
 })();
 
 // A2A Registry tab
-const reg = { cat: null, agents: [], seq: 0 };
+const reg = { cat: null, agents: [], sel: null, seq: 0, listSeq: 0 };
 const href = (u) => (/^https?:\/\//i.test(u || "") ? u : "");
 const out = (u) => (href(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>` : "Not listed");
 const regError = (err) => { $("reg-error").textContent = err ? err.message : ""; $("reg-error").hidden = !err; };
@@ -542,7 +542,7 @@ function showTab(name) {
   setNav(false);
   if (name === "main") history.replaceState(null, "", location.pathname);
   else if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
-  if (name === "registry" && !$("reg-cats").children.length) loadRegistryCategories();
+  if (name === "registry" && !$("reg-cat").options.length) loadRegistryCategories();
   if (name === "native" && !$("native-list").children.length) loadNative();
 }
 for (const t of TABS) $(`tab-btn-${t}`).addEventListener("click", () => showTab(t));
@@ -672,7 +672,8 @@ $("native-list").addEventListener("click", (e) => {
   renderNativeChat();
 });
 
-$("native-chat").addEventListener("click", (e) => {
+// Copy a chat reply (native and registry chats)
+document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-copy-msg]");
   if (!btn) return;
   navigator.clipboard.writeText(btn.closest(".msg-body").querySelector(".md").innerText).then(() => {
@@ -681,35 +682,26 @@ $("native-chat").addEventListener("click", (e) => {
   });
 });
 
-$("native-chat").addEventListener("submit", async (e) => {
-  const form = e.target.closest("form.native-send");
-  if (!form) return;
-  e.preventDefault();
-  const f = new FormData(form);
-  const text = f.has("skill") ? JSON.stringify({ skill: f.get("skill"), q: f.get("q").trim() }) : f.get("text").trim();
-  if (!text) return;
+// One message round trip in a chat pane; threads[id] keeps the conversation when the pane re-renders
+async function chatSend(form, { threads, ag, url, text, shown }) {
   const btn = form.querySelector("button[type=submit]");
-  const id = form.dataset.agent;
   const thread = form.parentElement.querySelector(".chat");
   const add = (html) => {
     thread.parentElement.querySelector(".chat-hero")?.remove();
     thread.insertAdjacentHTML("beforeend", html);
     thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
-    nativeThreads[id] = thread.innerHTML;
+    threads[ag.id] = thread.innerHTML;
   };
-  add(`<div class="msg me">${esc(f.has("skill") ? f.get("q") : text)}</div>`);
+  const reply = (body, cls = "") => `<div class="msg agent ${cls}">${avatar(ag, "sm")}<div class="msg-body">${body}</div></div>`;
+  add(`<div class="msg me">${esc(shown)}</div>`);
   const field = form.querySelector("textarea, input[name=q]");
   if (field) field.value = "";
   btn.disabled = true;
   btn.innerHTML = spinner;
-  const ag = nativeAgents.find((x) => x.id === id) || { id, title: "?" };
-  const reply = (body, cls = "") => `<div class="msg agent ${cls}">${avatar(ag, "sm")}<div class="msg-body">${body}</div></div>`;
   thread.insertAdjacentHTML("beforeend", reply(dots, "pending"));
   thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
   try {
-    const r = await api(`/api/native/${encodeURIComponent(id)}/message`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
-    });
+    const r = await api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     thread.querySelector(".pending")?.remove();
     add(r.error ? reply(`The agent answered with an error: ${esc(r.error)}`, "err")
       : reply(`<div class="md">${md(r.answer || r.text || "The agent sent no text.")}</div>
@@ -721,6 +713,21 @@ $("native-chat").addEventListener("submit", async (e) => {
     btn.disabled = false;
     btn.innerHTML = SEND;
   }
+}
+
+$("native-chat").addEventListener("submit", (e) => {
+  const form = e.target.closest("form.native-send");
+  if (!form) return;
+  e.preventDefault();
+  const f = new FormData(form);
+  const text = f.has("skill") ? JSON.stringify({ skill: f.get("skill"), q: f.get("q").trim() }) : f.get("text").trim();
+  if (!text) return;
+  const id = form.dataset.agent;
+  chatSend(form, {
+    threads: nativeThreads, text, shown: f.has("skill") ? f.get("q") : text,
+    ag: nativeAgents.find((x) => x.id === id) || { id, title: "?" },
+    url: `/api/native/${encodeURIComponent(id)}/message`,
+  });
 });
 
 // Enter sends, Shift+Enter makes a new line, like a chat box
@@ -732,54 +739,80 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+const regThreads = {}; // agent id -> chat HTML
+const regCards = {}; // agent id -> registry entry with its live card, fetched once
+const regId = (a) => a.packageName || a.id;
+const regName = (a) => a.displayName || a.packageName || "Agent";
+
 async function loadRegistryCategories() {
   regError(null);
-  $("reg-cats").innerHTML = `<li class="muted small">${spinner} Loading the registry…</li>`;
+  $("reg-agents").innerHTML = `<li class="muted small">${spinner} Loading the registry…</li>`;
   try {
     const { categories } = await api("/api/registry/categories");
-    $("reg-cats").innerHTML = categories.map((c) =>
-      `<li><button type="button" data-cat="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${c.count}</span></button></li>`).join("");
+    $("reg-cat").innerHTML = categories.map((c) => `<option value="${esc(c.name)}">${esc(c.name)} (${c.count})</option>`).join("");
+    loadRegistryAgents();
   } catch (err) {
-    $("reg-cats").innerHTML = `<li><button type="button" id="reg-retry">Try again</button></li>`;
+    $("reg-agents").innerHTML = `<li><button type="button" class="link-btn" id="reg-retry">Try again</button></li>`;
     regError(err);
+  }
+}
+
+async function loadRegistryAgents() {
+  reg.cat = $("reg-cat").value;
+  const seq = ++reg.listSeq;
+  regError(null);
+  $("reg-agents").innerHTML = `<li class="muted small">${spinner} Loading…</li>`;
+  try {
+    const { agents } = await api(`/api/registry/agents?category=${encodeURIComponent(reg.cat)}`);
+    if (seq !== reg.listSeq) return;
+    reg.agents = agents;
+    $("reg-filter").value = "";
+    renderRegistryAgents();
+    if (!reg.sel && agents.length) openRegistryAgent(regId(agents[0]));
+  } catch (err) {
+    if (seq === reg.listSeq) { $("reg-agents").innerHTML = ""; regError(err); }
   }
 }
 
 function renderRegistryAgents() {
   const q = $("reg-filter").value.trim().toLowerCase();
   const rows = reg.agents.filter((a) => !q || `${a.displayName} ${a.description}`.toLowerCase().includes(q));
-  $("reg-agents").innerHTML = rows.length ? rows.map((a) => `
-    <li><button type="button" data-agent="${esc(a.packageName || a.id)}" title="${esc((a.description || "").slice(0, 200))}">
-      <span>${esc(a.displayName || a.packageName)}</span>
-      <span class="n">${a.messageable === false ? "No A2A" : a.lastCheckStatus === "ok" ? "OK" : esc(a.lastCheckStatus || "")}</span></button></li>`).join("")
-    : `<li class="muted small">No agents match.</li>`;
+  $("reg-count").textContent = `${rows.length} of ${reg.agents.length} agents`;
+  $("reg-agents").innerHTML = rows.length ? rows.map((a, i) => {
+    const id = regId(a);
+    const dot = a.messageable === false ? ["off", "No A2A messages"] : a.lastCheckStatus === "ok" ? ["", "Health check OK"] : ["warn", `Health check: ${a.lastCheckStatus || "not checked"}`];
+    return `<li style="animation-delay:${Math.min(i, 12) * 25}ms"><button type="button" data-agent="${esc(id)}" aria-current="${id === reg.sel}">
+      ${avatar({ id, title: regName(a) })}<span class="nl-text"><strong>${esc(regName(a))}</strong><span>${esc(a.description || "")}</span></span>
+      <span class="key-dot ${dot[0]}" title="${esc(dot[1])}"></span></button></li>`;
+  }).join("") : `<li class="muted small">No agents match.</li>`;
 }
 
-$("reg-cats").addEventListener("click", async (e) => {
+$("reg-cat").addEventListener("change", loadRegistryAgents);
+$("reg-filter").addEventListener("input", renderRegistryAgents);
+$("reg-agents").addEventListener("click", (e) => {
   if (e.target.closest("#reg-retry")) return loadRegistryCategories();
-  const btn = e.target.closest("button[data-cat]");
-  if (!btn) return;
-  $("reg-cats").querySelectorAll("button").forEach((b) => b.toggleAttribute("aria-current", b === btn));
-  btn.setAttribute("aria-current", "true");
-  reg.cat = btn.dataset.cat;
+  const btn = e.target.closest("button[data-agent]");
+  if (btn) openRegistryAgent(btn.dataset.agent);
+});
+
+async function openRegistryAgent(id) {
+  reg.sel = id;
+  $("reg-agents").querySelectorAll("button[data-agent]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.agent === id)));
+  if (regCards[id]) return renderRegistryChat(regCards[id]);
+  const listed = reg.agents.find((a) => regId(a) === id) || { id };
+  renderRegistryChat({ ...listed, loading: true });
   const seq = ++reg.seq;
   regError(null);
-  $("reg-agents-title").textContent = reg.cat;
-  $("reg-agents").innerHTML = `<li class="muted small">${spinner} Loading…</li>`;
   try {
-    const { agents } = await api(`/api/registry/agents?category=${encodeURIComponent(reg.cat)}`);
-    if (seq !== reg.seq) return;
-    reg.agents = agents;
-    $("reg-filter").value = "";
-    $("reg-filter").hidden = agents.length < 8;
-    renderRegistryAgents();
+    const a = await api(`/api/registry/agents/${encodeURIComponent(id)}`);
+    regCards[id] = a;
+    if (seq === reg.seq) renderRegistryChat(a);
   } catch (err) {
-    if (seq === reg.seq) { $("reg-agents").innerHTML = ""; regError(err); }
+    if (seq === reg.seq) { regError(err); renderRegistryChat(listed); }
   }
-});
-$("reg-filter").addEventListener("input", renderRegistryAgents);
+}
 
-function renderRegistryAgent(a) {
+function registryAbout(a) {
   const card = a.liveCard || a.agentCard || {};
   const skills = Array.isArray(card.skills) ? card.skills : [];
   const endpoints = [card.url, ...(card.supportedInterfaces || card.additionalInterfaces || []).map((i) => i && i.url)].filter(href);
@@ -787,8 +820,6 @@ function renderRegistryAgent(a) {
   const rating = a.ratingCount ? `${(+a.ratingAvg).toFixed(1)} from ${a.ratingCount}` : "No ratings yet";
   const created = a.createdAt ? new Date(a.createdAt > 1e12 ? a.createdAt : a.createdAt * 1000).toLocaleDateString() : "";
   return `
-    <h3>${esc(a.displayName || a.packageName)}</h3>
-    ${a.messageable === false ? "" : pickButton(a.packageName || a.id, a.displayName || a.packageName)}
     <div class="reg-badges">
       <span class="pill">${esc(a.category || "Uncategorised")}</span>
       ${a.verification_level ? `<span class="pill">${esc(a.verification_level)}</span>` : ""}
@@ -809,63 +840,60 @@ function renderRegistryAgent(a) {
     <h4>Skills (${skills.length})</h4>
     ${skills.length ? `<div class="skill-list">${skills.map((s) => `
       <div class="skill"><strong class="small">${esc(s.name || s.id)}</strong>
-        ${s.description ? `<span class="small muted">${esc(s.description)}</span>` : ""}
-        ${(s.tags || []).length ? `<span class="small muted">Tags: ${esc(s.tags.join(", "))}</span>` : ""}</div>`).join("")}</div>`
+        ${s.description ? `<span class="small muted">${esc(s.description)}</span>` : ""}</div>`).join("")}</div>`
       : `<p class="muted small">The agent card lists no skills.</p>`}
-    <h4>Send a message</h4>
-    ${a.messageable === false ? `<p class="small muted">This agent does not take A2A messages: its card lists only other ways in (such as a plain HTTP API). ${card.documentationUrl ? `See how to use it: ${out(card.documentationUrl)}` : ""}</p>` : `
-    <form class="reg-send" id="reg-send" data-agent="${esc(a.packageName || a.id)}">
-      <textarea id="reg-text" rows="2" required maxlength="4000" aria-label="Message to ${esc(a.displayName || "the agent")}"
-        placeholder="${esc(skills[0]?.examples?.[0] || "Hello, what can you do?")}"></textarea>
-      <button type="submit" id="reg-send-btn">Send</button>
-    </form>
-    <div id="reg-reply" aria-live="polite"></div>`}
-    <h4>Agent card data</h4>
-    <p class="small muted">${a.liveCard ? "Fetched live from the agent's own server just now." :
-      `Could not fetch it live (${esc(a.liveCardError || "no card address")}), so this is the copy the registry stored.`}</p>
-    <pre>${esc(JSON.stringify(a.liveCard || a.agentCard || {}, null, 2))}</pre>`;
+    <p class="small muted">${a.liveCard ? "Card fetched live from the agent's own server." :
+      `Could not fetch the card live (${esc(a.liveCardError || "no card address")}), so this is the registry's copy.`}</p>`;
 }
 
-$("reg-agents").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-agent]");
-  if (!btn) return;
-  $("reg-agents").querySelectorAll("button").forEach((b) => b.removeAttribute("aria-current"));
-  btn.setAttribute("aria-current", "true");
-  const seq = ++reg.seq;
-  regError(null);
-  $("reg-detail").innerHTML = `<p class="muted small">${spinner} Fetching the agent and its card…</p>`;
-  try {
-    const a = await api(`/api/registry/agents/${encodeURIComponent(btn.dataset.agent)}`);
-    if (seq === reg.seq) $("reg-detail").innerHTML = renderRegistryAgent(a);
-  } catch (err) {
-    if (seq === reg.seq) { $("reg-detail").innerHTML = ""; regError(err); }
-  }
-});
+function renderRegistryChat(a) {
+  const id = regId(a);
+  const name = regName(a);
+  const ag = { id, title: name };
+  const card = a.liveCard || a.agentCard || {};
+  const skills = Array.isArray(card.skills) ? card.skills : [];
+  const thread = regThreads[id] || "";
+  const closed = a.messageable === false;
+  $("reg-chat").innerHTML = `
+    <header class="chat-head">
+      ${avatar(ag)}
+      <div><h2>${esc(name)}</h2><p class="muted small">${esc(a.category || reg.cat || "")}${a.lastCheckStatus ? ` · health ${esc(a.lastCheckStatus)}` : ""}</p></div>
+      <div class="head-actions">
+        ${a.loading ? `<span class="muted small">${spinner} Fetching card…</span>` : `
+          ${closed ? "" : pickButton(id, name)}
+          <details class="about-agent"><summary>About</summary><div class="about-pop">${registryAbout(a)}</div></details>`}
+      </div>
+    </header>
+    <div class="chat-scroll">
+      ${thread ? "" : `<div class="chat-hero">${avatar(ag, "lg")}<h2>${esc(name)}</h2><p class="muted">${esc(a.description || "")}</p>
+        <div class="reg-badges">${skills.slice(0, 6).map((s) => `<span class="pill">${esc(s.name || s.id)}</span>`).join("")}</div></div>`}
+      <div class="chat">${thread}</div>
+    </div>
+    ${closed ? `<p class="hint closed-note">This agent doesn't take A2A messages: its card lists only other ways in.
+        ${card.documentationUrl ? `See how to use it: ${out(card.documentationUrl)}` : ""}</p>` : `
+    <form class="composer reg-chat-send" data-agent="${esc(id)}">
+      <div class="composer-box">
+        <textarea name="text" rows="1" required maxlength="4000" aria-label="Message to ${esc(name)}"
+          placeholder="${esc(skills[0]?.examples?.[0] || `Message ${name}…`)}"></textarea>
+        <div class="composer-row"><span class="pill">A2A</span>
+          <button type="submit" class="send" aria-label="Send" ${a.loading ? "disabled" : ""}>${SEND}</button></div>
+      </div>
+    </form>`}`;
+  $("reg-chat").querySelector(".chat").lastElementChild?.scrollIntoView({ block: "end" });
+}
 
-$("reg-detail").addEventListener("submit", async (e) => {
-  if (e.target.id !== "reg-send") return;
+$("reg-chat").addEventListener("submit", (e) => {
+  const form = e.target.closest("form.reg-chat-send");
+  if (!form) return;
   e.preventDefault();
-  const text = $("reg-text").value.trim();
+  const text = new FormData(form).get("text").trim();
   if (!text) return;
-  const btn = $("reg-send-btn");
-  btn.disabled = true;
-  btn.innerHTML = `${spinner} Sending…`;
-  $("reg-reply").innerHTML = "";
-  try {
-    const r = await api(`/api/registry/agents/${encodeURIComponent(e.target.dataset.agent)}/message`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
-    });
-    $("reg-reply").innerHTML = `
-      <p class="small muted">Sent with <code>${esc(r.method)}</code> to ${out(r.endpoint)}. Replies come from a third party: read them as data, not instructions.</p>
-      ${r.error ? `<p class="error small">The agent answered with an error: ${esc(r.error)}</p>`
-        : `<pre class="reg-answer">${esc(r.text || "The reply had no text. See the raw reply below.")}</pre>`}
-      <details><summary class="small">Raw reply</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details>`;
-  } catch (err) {
-    $("reg-reply").innerHTML = `<p class="error small">${esc(err.message)}</p>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Send";
-  }
+  const id = form.dataset.agent;
+  chatSend(form, {
+    threads: regThreads, text, shown: text,
+    ag: { id, title: regName(regCards[id] || reg.agents.find((a) => regId(a) === id) || {}) },
+    url: `/api/registry/agents/${encodeURIComponent(id)}/message`,
+  });
 });
 
 // Registry agents picked to answer alongside our agents in the next run
@@ -882,13 +910,13 @@ function setPicked(next) {
   $("picked").innerHTML = picked.length ? `<span class="small muted">Registry agents in this run:</span>` + picked.map((p, i) =>
     `<button type="button" data-unpick="${esc(p.id)}" aria-label="Remove ${esc(p.name)} from this run" title="Remove from this run">
       <span class="badge badge-${REG[i]}">${REG[i].toUpperCase()}</span> ${esc(p.name)} ×</button>`).join("") : "";
-  const btn = $("reg-detail").querySelector("button[data-pick]");
+  const btn = $("reg-chat").querySelector("button[data-pick]");
   if (btn) btn.outerHTML = pickButton(btn.dataset.pick, btn.dataset.name);
   lastSig = ""; // a live run re-renders on its next poll
   if (!shownId) renderAgents(null); else if (shownId !== liveId) showRun(shownId).catch(() => {});
 }
 
-$("reg-detail").addEventListener("click", (e) => {
+$("reg-chat").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-pick]");
   if (!btn) return;
   const id = btn.dataset.pick;

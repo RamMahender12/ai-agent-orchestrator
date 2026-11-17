@@ -471,7 +471,7 @@ summary:hover { color: var(--text); }
 /* Native agents chat */
 .native-panel { display: grid; grid-template-columns: 290px minmax(0, 1fr); overflow: hidden; }
 .native-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 16px 10px; border-right: 1px solid var(--line); }
-.native-side > .field { margin: 0 4px; }
+.native-side > .field { margin: 0 4px; width: calc(100% - 8px); }
 .native-side > .muted { padding: 0 8px; }
 .native-list { flex: 1; overflow-y: auto; display: grid; align-content: start; gap: 2px; }
 .native-list li { animation: fade 0.3s both; }
@@ -575,3 +575,12 @@ dialog p { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Registry chat extras */
+.head-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.head-actions .about-agent { margin-left: 0; }
+.chat-head .reg-pick { padding: 6px 14px; font-size: 0.8rem; }
+.native-side > .error { padding: 0 8px; }
+.key-dot.off { background: var(--muted); opacity: 0.5; }
+.closed-note { padding: 0 20px 20px; max-width: 820px; margin: 0 auto; }
+@media (max-width: 600px) { .chat-head { flex-wrap: wrap; } }

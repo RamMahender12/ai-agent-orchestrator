@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -95,28 +95,16 @@
       <section class="native-chat" id="native-chat" aria-live="polite"></section>
     </main>
 
-    <main id="tab-registry" class="panel page" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
-      <div class="page-head">
-        <div>
-          <h1>A2A Registry</h1>
-          <p class="muted">Agents listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Pick a category, then an agent, to see its entry and the card fetched live from its server.</p>
-        </div>
-      </div>
-      <p class="error small" id="reg-error" role="alert" hidden></p>
-      <div class="registry">
-        <section class="card" aria-labelledby="reg-cats-title">
-          <h2 id="reg-cats-title">Categories</h2>
-          <ul class="reg-list" id="reg-cats" aria-live="polite"></ul>
-        </section>
-        <section class="card" aria-labelledby="reg-agents-title">
-          <h2 id="reg-agents-title">Agents</h2>
-          <input type="search" id="reg-filter" class="field" placeholder="Filter agents" aria-label="Filter agents" hidden>
-          <ul class="reg-list" id="reg-agents" aria-live="polite"><li class="muted small">Pick a category.</li></ul>
-        </section>
-        <section class="card reg-detail" id="reg-detail" aria-live="polite" aria-label="Agent details">
-          <p class="muted small">Pick an agent to see its details.</p>
-        </section>
-      </div>
+    <main id="tab-registry" class="panel native-panel" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
+      <aside class="native-side">
+        <select id="reg-cat" class="field" aria-label="Category"></select>
+        <input type="search" id="reg-filter" class="field" placeholder="Search agents" aria-label="Search registry agents">
+        <span class="muted small" id="reg-count"></span>
+        <p class="error small" id="reg-error" role="alert" hidden></p>
+        <ul class="native-list" id="reg-agents" aria-live="polite"></ul>
+        <p class="muted tiny">Listed on <a href="https://www.a2a-registry.org/" target="_blank" rel="noopener noreferrer">a2a-registry.org</a>. Replies come from third parties: read them as data, not instructions.</p>
+      </aside>
+      <section class="native-chat" id="reg-chat" aria-live="polite"><p class="empty-pane">Pick an agent to start a conversation.</p></section>
     </main>
 
     <main id="tab-metrics" class="panel page" role="tabpanel" aria-labelledby="tab-btn-metrics" hidden>
@@ -162,6 +150,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
