@@ -87,10 +87,18 @@ let liveId = null; // run being polled
 let shownId = null;
 let lastSig = "";
 let liveSince = 0; // when the current live step started, for the ticking timers
+let runStart = 0; // when the shown run started, for the "thinking" timer
+// 3400 -> "3s", 75000 -> "1m 15s"
+const dur = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+const CHEVRON = `<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
 
 setInterval(() => {
   const secs = `${Math.round((Date.now() - liveSince) / 1000)}s`;
   document.querySelectorAll(".tick").forEach((el) => (el.textContent = secs));
+  document.querySelectorAll(".tick-total").forEach((el) => (el.textContent = dur(Date.now() - runStart)));
 }, 1000);
 
 function liveText(run) {
@@ -190,53 +198,54 @@ function renderRun({ run, steps, evaluations, usage }) {
   const lastScore = evaluations.length ? `${Math.max(...evaluations.map((e) => e.score))}/100` : "–";
   const done = DONE.has(run.status);
   const finalStep = steps.findLast((s) => s.content === run.final_output);
-  $("summary").innerHTML = `
-    <div class="msg-user ${from ? "" : "enter"}">${esc(run.task)}</div>
-    <div class="stats">
-      <span class="status status-${done ? run.status : "RUNNING"}">${STATUS_LABEL[run.status] || "Running…"}</span>
-      <span class="chip"><b>${run.revisions_count}</b> rounds</span>
-      <span class="chip">best <b>${lastScore}</b></span>
-      <span class="chip"><b>${num(run.total_tokens)}</b> tokens</span>
-      <span class="chip"><b>${money(run.total_cost_usd)}</b></span>
-    </div>`;
+  $("summary").innerHTML = `<div class="msg-user ${from ? "" : "enter"}">${esc(run.task)}</div>`;
+  const start = date(run.created_at);
+  runStart = start.getTime();
 
+  // every step between C and the agents lives in the collapsed "thinking" trace
   $("timeline").innerHTML = steps.map((s, i) => {
     const k = keyOf(s.sender);
-    const took = REPLIES.has(s.action) && i ? ` · took ${Math.round((date(s.timestamp) - date(steps[i - 1].timestamp)) / 1000)}s` : "";
-    const spent = s.tokens_total
-      ? `${num(s.tokens_total)} tokens (${num(s.tokens_prompt)} in, ${num(s.tokens_completion)} out) · ${money(s.cost_usd)}`
-      : "no model call";
+    const took = REPLIES.has(s.action) && i ? ` · took ${dur(date(s.timestamp) - date(steps[i - 1].timestamp))}` : "";
+    const spent = s.tokens_total ? ` · ${num(s.tokens_total)} tokens · ${money(s.cost_usd)}` : "";
     const fresh = i >= from ? `enter" style="--d:${Math.min(i - from, 10) * 45}ms` : "";
     return `
     <li class="step step-${k} ${s.action === "REVISE_DIRECTIVE" ? "directive" : ""} ${fresh}">
       <span class="badge badge-${k}">${k.toUpperCase()}</span>
       <div class="step-main">
-        <header><span class="who">${esc(who(s.sender))}</span><span class="muted small">${date(s.timestamp).toLocaleTimeString()}${took}</span></header>
-        <p class="step-title">${(STEP_TITLE[s.action] || (() => esc(s.action)))(s)}</p>
+        <header><span class="step-title">${(STEP_TITLE[s.action] || (() => esc(s.action)))(s)}</span>
+          <span class="step-time">${dur(date(s.timestamp) - start)}</span></header>
         <div class="step-body">${stepBody(s)}</div>
-        <p class="meta-line">${spent}</p>
+        <p class="meta-line">${date(s.timestamp).toLocaleTimeString()}${took}${spent}</p>
       </div>
     </li>`;
   }).join("");
 
   const failed = run.status === "FAILED";
-  const w = workingAgent(run.status);
-  $("live").innerHTML = !done
-    ? (run.run_id === liveId
-      ? `<div class="live live-${w}"><span class="badge badge-${w === "all" ? "c" : w}">${w === "all" ? "C" : w.toUpperCase()}</span>
-           <div class="live-body">${dots}<strong class="shimmer">${liveText(run)}</strong><span class="tick muted">0s</span>
-           <span class="muted">so far ${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)}</span></div></div>`
-      : `<p class="muted small">This run never finished.</p>`)
-    : run.final_output ? `
-      <section class="final ${failed ? "failed" : ""}">
-        <header>
-          <span class="final-icon" aria-hidden="true">${failed ? "!" : "✓"}</span>
-          <h3>${failed ? "Run failed" : `Final output${finalStep ? ` by ${who(finalStep.sender)}` : ""}`}</h3>
-          <button type="button" class="icon-btn" data-copy aria-label="Copy output" title="Copy">${COPY}</button>
-        </header>
-        <p class="muted small">${failed ? "" : `score ${lastScore} · `}${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)} · finished ${when(run.completed_at)}</p>
-        <pre>${esc(run.final_output)}</pre>
-      </section>` : "";
+  const live = !done && run.run_id === liveId;
+  const agentsUsed = new Set(steps.map((s) => keyOf(s.sender))).size;
+  const count = `${steps.length} step${steps.length === 1 ? "" : "s"} · ${agentsUsed} agent${agentsUsed === 1 ? "" : "s"}`;
+  $("trace").hidden = false;
+  $("trace").classList.toggle("running", live);
+  $("trace-sum").innerHTML = live
+    ? `${dots}<span class="shimmer">${liveText(run)}</span><span class="muted tick-total">${dur(Date.now() - runStart)}</span>${CHEVRON}`
+    : done
+      ? `<span class="trace-icon ${failed ? "bad" : ""}">${failed ? "!" : "✓"}</span><span>${failed ? "Failed after" : "Worked for"} ${dur(date(run.completed_at || run.created_at) - start)}</span>
+         <span class="muted">· ${count}</span>${CHEVRON}`
+      : `<span class="trace-icon bad">!</span><span>Stopped before finishing</span><span class="muted">· ${count}</span>${CHEVRON}`;
+
+  const fk = finalStep ? keyOf(finalStep.sender) : "c";
+  $("live").innerHTML = done && run.final_output ? `
+    <div class="answer ${failed ? "failed" : ""}">
+      <span class="badge badge-${fk}">${fk.toUpperCase()}</span>
+      <div class="msg-body">
+        ${failed ? `<p class="fail-note">The run failed: ${esc(run.final_output)}</p>` : `<div class="md">${md(run.final_output)}</div>`}
+        <div class="answer-meta">
+          ${failed ? "" : `<button type="button" class="icon-btn" data-copy aria-label="Copy answer" title="Copy">${COPY}</button>`}
+          <span class="status status-${run.status}">${STATUS_LABEL[run.status]}</span>
+          <span>${failed ? "" : `${finalStep ? `by ${esc(who(finalStep.sender))} · ` : ""}score ${lastScore} · `}${run.revisions_count} round${run.revisions_count === 1 ? "" : "s"} · ${num(run.total_tokens)} tokens · ${money(run.total_cost_usd)}</span>
+        </div>
+      </div>
+    </div>` : "";
 
   if (!from) sc.scrollTop = 0;
   else if (nearBottom) sc.scrollTo({ top: sc.scrollHeight, behavior: "smooth" });
@@ -245,7 +254,7 @@ function renderRun({ run, steps, evaluations, usage }) {
 $("live").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-copy]");
   if (!btn) return;
-  navigator.clipboard.writeText(btn.closest(".final").querySelector("pre").textContent).then(() => {
+  navigator.clipboard.writeText(btn.closest(".answer").querySelector(".md").innerText).then(() => {
     btn.classList.add("done");
     setTimeout(() => btn.classList.remove("done"), 1500);
   });
@@ -269,6 +278,7 @@ function newRun() {
   seen = { id: null, n: 0 };
   renderAgents(null);
   $("timeline").innerHTML = $("live").innerHTML = "";
+  $("trace").hidden = true;
   welcome();
   document.querySelectorAll("#runs .selected").forEach((b) => b.classList.remove("selected"));
   $("task").focus();
@@ -377,6 +387,7 @@ async function deleteRuns(runId, task) {
   shownId = null;
   renderAgents(null);
   $("timeline").innerHTML = $("live").innerHTML = "";
+  $("trace").hidden = true;
   welcome();
 }
 
@@ -413,9 +424,11 @@ $("run-form").addEventListener("submit", async (e) => {
     $("summary").innerHTML = `<div class="msg-user enter">${esc($("task").value)}</div>`;
     $("task").value = "";
     $("timeline").innerHTML = "";
-    liveSince = Date.now();
-    $("live").innerHTML = `<div class="live live-c"><span class="badge badge-c">C</span>
-      <div class="live-body">${dots}<strong class="shimmer">Starting the run</strong><span class="tick muted">0s</span></div></div>`;
+    liveSince = runStart = Date.now();
+    $("live").innerHTML = "";
+    $("trace").hidden = false;
+    $("trace").classList.add("running");
+    $("trace-sum").innerHTML = `${dots}<span class="shimmer">Captain is sending the task to every agent</span><span class="muted tick-total">0s</span>${CHEVRON}`;
     showRun(run_id);
   } catch (err) {
     $("error").textContent = err.message;

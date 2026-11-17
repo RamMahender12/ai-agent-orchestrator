@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -62,8 +62,11 @@
       <div class="thread">
         <section class="agents" id="agents" aria-label="Agents"></section>
         <div id="summary"></div>
-        <ol class="timeline" id="timeline" aria-live="polite"></ol>
-        <div id="live"></div>
+        <details class="trace" id="trace" hidden>
+          <summary id="trace-sum" aria-live="polite"></summary>
+          <ol class="timeline" id="timeline"></ol>
+        </details>
+        <div id="live" aria-live="polite"></div>
       </div>
       <form class="composer" id="run-form">
         <div class="picked" id="picked" hidden></div>
@@ -159,6 +162,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
